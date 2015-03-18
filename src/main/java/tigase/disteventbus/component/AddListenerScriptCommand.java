@@ -12,19 +12,22 @@ import tigase.component.adhoc.AdHocResponse;
 import tigase.component.adhoc.AdhHocRequest;
 import tigase.form.Field;
 import tigase.form.Form;
+import tigase.kernel.Inject;
 import tigase.xml.Element;
 import tigase.xmpp.Authorization;
 import tigase.xmpp.JID;
 
 public class AddListenerScriptCommand implements AdHocCommand {
 
+	public static final String ID = "add-listener-script";
+
+	@Inject
 	private ListenerScriptRegistrar registrar;
 
+	@Inject
 	private ScriptEngineManager scriptEngineManager;
 
-	public AddListenerScriptCommand(ScriptEngineManager scriptEngineManager, ListenerScriptRegistrar registrar) {
-		this.scriptEngineManager = scriptEngineManager;
-		this.registrar = registrar;
+	public AddListenerScriptCommand() {
 	}
 
 	@Override
@@ -92,12 +95,28 @@ public class AddListenerScriptCommand implements AdHocCommand {
 
 	@Override
 	public String getNode() {
-		return "add-listener-script";
+		return ID;
+	}
+
+	public ListenerScriptRegistrar getRegistrar() {
+		return registrar;
+	}
+
+	public ScriptEngineManager getScriptEngineManager() {
+		return scriptEngineManager;
 	}
 
 	@Override
 	public boolean isAllowedFor(JID jid) {
 		return true;
+	}
+
+	public void setRegistrar(ListenerScriptRegistrar registrar) {
+		this.registrar = registrar;
+	}
+
+	public void setScriptEngineManager(ScriptEngineManager scriptEngineManager) {
+		this.scriptEngineManager = scriptEngineManager;
 	}
 
 }

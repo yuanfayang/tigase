@@ -12,7 +12,7 @@ import tigase.component.adhoc.AdHocResponse;
 import tigase.component.adhoc.AdhHocRequest;
 import tigase.form.Field;
 import tigase.form.Form;
-import tigase.monitor.MonitorContext;
+import tigase.kernel.Inject;
 import tigase.monitor.TasksScriptRegistrar;
 import tigase.xml.Element;
 import tigase.xmpp.Authorization;
@@ -20,11 +20,13 @@ import tigase.xmpp.JID;
 
 public class AddScriptTaskCommand implements AdHocCommand {
 
-	private MonitorContext monitorContext;
+	public static final String ID = "x-add-task";
 
-	public AddScriptTaskCommand(MonitorContext monitorContext) {
-		this.monitorContext = monitorContext;
-	}
+	@Inject
+	private ScriptEngineManager scriptEngineManager;
+
+	@Inject
+	private TasksScriptRegistrar tasksScriptRegistrar;
 
 	@Override
 	public void execute(AdhHocRequest request, AdHocResponse response) throws AdHocCommandException {
@@ -36,7 +38,7 @@ public class AddScriptTaskCommand implements AdHocCommand {
 			} else if (data == null) {
 				Form form = new Form("form", "Add monitor script", null);
 
-				List<ScriptEngineFactory> sef = monitorContext.getKernel().getInstance(ScriptEngineManager.class).getEngineFactories();
+				List<ScriptEngineFactory> sef = scriptEngineManager.getEngineFactories();
 				ArrayList<String> labels = new ArrayList<String>();
 				ArrayList<String> values = new ArrayList<String>();
 				for (ScriptEngineFactory scriptEngineFactory : sef) {
@@ -59,8 +61,7 @@ public class AddScriptTaskCommand implements AdHocCommand {
 					String scriptExtension = form.getAsString("scriptExtension");
 					String scriptContent = form.getAsString("scriptContent");
 
-					((TasksScriptRegistrar) monitorContext.getKernel().getInstance(TasksScriptRegistrar.ID)).registerScript(
-							scriptName, scriptExtension, scriptContent);
+					tasksScriptRegistrar.registerScript(scriptName, scriptExtension, scriptContent);
 
 				}
 
@@ -80,12 +81,28 @@ public class AddScriptTaskCommand implements AdHocCommand {
 
 	@Override
 	public String getNode() {
-		return "x-add-task";
+		return ID;
+	}
+
+	public ScriptEngineManager getScriptEngineManager() {
+		return scriptEngineManager;
+	}
+
+	public TasksScriptRegistrar getTasksScriptRegistrar() {
+		return tasksScriptRegistrar;
 	}
 
 	@Override
 	public boolean isAllowedFor(JID jid) {
 		return true;
+	}
+
+	public void setScriptEngineManager(ScriptEngineManager scriptEngineManager) {
+		this.scriptEngineManager = scriptEngineManager;
+	}
+
+	public void setTasksScriptRegistrar(TasksScriptRegistrar tasksScriptRegistrar) {
+		this.tasksScriptRegistrar = tasksScriptRegistrar;
 	}
 
 }

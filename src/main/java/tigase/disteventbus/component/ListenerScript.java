@@ -7,20 +7,22 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 
+import tigase.disteventbus.EventBus;
 import tigase.disteventbus.EventHandler;
+import tigase.kernel.Kernel;
 import tigase.xml.Element;
 
 public class ListenerScript implements EventHandler {
 
 	private CompiledScript compiledScript;
 
-	private EventBusContext context;
-
 	private ScriptEngine engine;
 
 	private String eventName;
 
 	private String eventXMLNS;
+
+	private Kernel kernel;
 
 	private String scriptContent;
 
@@ -31,7 +33,6 @@ public class ListenerScript implements EventHandler {
 			bindings.put("event", event);
 			bindings.put("eventName", name);
 			bindings.put("eventXMLNS", xmlns);
-			bindings.put("context", context);
 
 			if (this.compiledScript != null) {
 				this.compiledScript.eval(bindings);
@@ -43,9 +44,9 @@ public class ListenerScript implements EventHandler {
 		}
 	}
 
-	public void run(EventBusContext context, ScriptEngineManager scriptEngineManager, String scriptName,
-			String scriptExtension, String scriptContent, String eventName, String eventXMLNS) throws ScriptException {
-		this.context = context;
+	public void run(Kernel kernel, ScriptEngineManager scriptEngineManager, String scriptName, String scriptExtension,
+			String scriptContent, String eventName, String eventXMLNS) throws ScriptException {
+		this.kernel = kernel;
 		this.eventName = eventName;
 		this.eventXMLNS = eventXMLNS;
 		this.engine = scriptEngineManager.getEngineByExtension(scriptExtension);
@@ -56,10 +57,10 @@ public class ListenerScript implements EventHandler {
 			this.compiledScript = null;
 		}
 
-		context.getEventBus().addHandler(this.eventName, this.eventXMLNS, this);
+		((EventBus) kernel.getInstance("eventBus")).addHandler(this.eventName, this.eventXMLNS, this);
 	}
 
 	public void unregister() {
-		context.getEventBus().removeHandler(this.eventName, this.eventXMLNS, this);
+		((EventBus) kernel.getInstance("eventBus")).removeHandler(this.eventName, this.eventXMLNS, this);
 	}
 }

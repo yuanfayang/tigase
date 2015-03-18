@@ -5,14 +5,15 @@ import tigase.component.adhoc.AdHocCommandException;
 import tigase.component.adhoc.AdHocCommandManager;
 import tigase.component.exceptions.ComponentException;
 import tigase.component.modules.impl.AdHocCommandModule;
-import tigase.monitor.MonitorContext;
+import tigase.kernel.Inject;
+import tigase.kernel.Kernel;
 import tigase.server.Command;
 import tigase.server.Packet;
 import tigase.xml.Element;
 import tigase.xmpp.Authorization;
 import tigase.xmpp.JID;
 
-public class AdHocCommandMonitorModule extends AdHocCommandModule<MonitorContext> {
+public class AdHocCommandMonitorModule extends AdHocCommandModule {
 
 	private ConfigureTaskCommand configCommand;
 
@@ -20,15 +21,11 @@ public class AdHocCommandMonitorModule extends AdHocCommandModule<MonitorContext
 
 	private InfoTaskCommand infoCommand;
 
-	public AdHocCommandMonitorModule(ScriptCommandProcessor scriptProcessor) {
-		super(scriptProcessor);
-	}
+	@Inject
+	private Kernel kernel;
 
-	@Override
-	public void afterRegistration() {
-		super.afterRegistration();
-		this.infoCommand = new InfoTaskCommand(context);
-		this.configCommand = new ConfigureTaskCommand(context);
+	public AdHocCommandMonitorModule() {
+		super();
 	}
 
 	private AdHocCommand getCommand(final Object taskInstance, final String node) {
@@ -40,11 +37,15 @@ public class AdHocCommandMonitorModule extends AdHocCommandModule<MonitorContext
 			return null;
 	}
 
+	public Kernel getKernel() {
+		return kernel;
+	}
+
 	@Override
 	public void process(Packet packet) throws ComponentException {
 		final JID jid = packet.getStanzaTo();
 
-		final Object taskInstance = jid.getResource() != null ? context.getKernel().getInstance(jid.getResource()) : null;
+		final Object taskInstance = jid.getResource() != null ? kernel.getInstance(jid.getResource()) : null;
 
 		if (jid.getResource() != null && taskInstance != null) {
 			processCommand(packet, taskInstance);
@@ -72,5 +73,9 @@ public class AdHocCommandMonitorModule extends AdHocCommandModule<MonitorContext
 		} catch (AdHocCommandException e) {
 			throw new ComponentException(e.getErrorCondition(), e.getMessage());
 		}
+	}
+
+	public void setKernel(Kernel kernel) {
+		this.kernel = kernel;
 	}
 }

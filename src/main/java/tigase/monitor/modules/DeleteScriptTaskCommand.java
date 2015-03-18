@@ -8,7 +8,8 @@ import tigase.component.adhoc.AdHocResponse;
 import tigase.component.adhoc.AdhHocRequest;
 import tigase.form.Field;
 import tigase.form.Form;
-import tigase.monitor.MonitorContext;
+import tigase.kernel.Inject;
+import tigase.kernel.Kernel;
 import tigase.monitor.MonitorTask;
 import tigase.xml.Element;
 import tigase.xmpp.Authorization;
@@ -16,11 +17,10 @@ import tigase.xmpp.JID;
 
 public class DeleteScriptTaskCommand implements AdHocCommand {
 
-	private MonitorContext monitorContext;
+	public static final String ID = "x-delete-task";
 
-	public DeleteScriptTaskCommand(MonitorContext monitorContext) {
-		this.monitorContext = monitorContext;
-	}
+	@Inject
+	private Kernel kernel;
 
 	@Override
 	public void execute(AdhHocRequest request, AdHocResponse response) throws AdHocCommandException {
@@ -32,7 +32,7 @@ public class DeleteScriptTaskCommand implements AdHocCommand {
 			} else if (data == null) {
 				Form form = new Form("form", "Delete monitor task", null);
 
-				Collection<String> taskNames = monitorContext.getKernel().getNamesOf(MonitorTask.class);
+				Collection<String> taskNames = kernel.getNamesOf(MonitorTask.class);
 
 				form.addField(Field.fieldListSingle("delete_task", "", "Task to delete", taskNames.toArray(new String[] {}),
 						taskNames.toArray(new String[] {})));
@@ -45,9 +45,9 @@ public class DeleteScriptTaskCommand implements AdHocCommand {
 				if ("submit".equals(form.getType())) {
 					String taskName = form.getAsString("delete_task");
 
-					Object i = monitorContext.getKernel().getInstance(taskName);
+					Object i = kernel.getInstance(taskName);
 					if (i instanceof MonitorTask)
-						monitorContext.getKernel().unregister(taskName);
+						kernel.unregister(taskName);
 					else
 						throw new RuntimeException("Are you kidding me?");
 				}
@@ -61,6 +61,10 @@ public class DeleteScriptTaskCommand implements AdHocCommand {
 		}
 	}
 
+	public Kernel getKernel() {
+		return kernel;
+	}
+
 	@Override
 	public String getName() {
 		return "Delete monitor task";
@@ -68,12 +72,16 @@ public class DeleteScriptTaskCommand implements AdHocCommand {
 
 	@Override
 	public String getNode() {
-		return "x-delete-task";
+		return ID;
 	}
 
 	@Override
 	public boolean isAllowedFor(JID jid) {
 		return true;
+	}
+
+	public void setKernel(Kernel kernel) {
+		this.kernel = kernel;
 	}
 
 }

@@ -9,9 +9,67 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import tigase.disteventbus.LocalEventBus.EventName;
+import tigase.disteventbus.component.NodeNameUtil;
 
 public class EventsNameMap<M> {
+
+	public static class EventName {
+
+		private final String name;
+
+		private final String xmlns;
+
+		EventName(String name, String xmlns) {
+			super();
+			this.name = name;
+			this.xmlns = xmlns;
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (this == obj)
+				return true;
+			if (obj == null)
+				return false;
+			if (getClass() != obj.getClass())
+				return false;
+			EventName other = (EventName) obj;
+			if (name == null) {
+				if (other.name != null)
+					return false;
+			} else if (!name.equals(other.name))
+				return false;
+			if (xmlns == null) {
+				if (other.xmlns != null)
+					return false;
+			} else if (!xmlns.equals(other.xmlns))
+				return false;
+			return true;
+		}
+
+		public String getName() {
+			return name;
+		}
+
+		public String getXmlns() {
+			return xmlns;
+		}
+
+		@Override
+		public int hashCode() {
+			final int prime = 31;
+			int result = 1;
+			result = prime * result + ((name == null) ? 0 : name.hashCode());
+			result = prime * result + ((xmlns == null) ? 0 : xmlns.hashCode());
+			return result;
+		}
+
+		@Override
+		public String toString() {
+			return NodeNameUtil.createNodeName(name, xmlns);
+		}
+
+	}
 
 	private final static String NULL_NAME = new String(new byte[] { 0 });
 
@@ -78,7 +136,7 @@ public class EventsNameMap<M> {
 	}
 
 	public Set<EventName> getAllListenedEvents() {
-		HashSet<EventName> result = new HashSet<LocalEventBus.EventName>();
+		HashSet<EventName> result = new HashSet<EventName>();
 		Iterator<Entry<String, Map<String, Collection<M>>>> xmlnsIt = dataMap.entrySet().iterator();
 
 		while (xmlnsIt.hasNext()) {

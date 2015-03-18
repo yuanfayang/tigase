@@ -5,8 +5,13 @@ import java.util.logging.Level;
 
 import tigase.component.exceptions.ComponentException;
 import tigase.criteria.Criteria;
+import tigase.disteventbus.EventElement;
 import tigase.disteventbus.component.stores.Affiliation;
+import tigase.disteventbus.component.stores.AffiliationStore;
 import tigase.disteventbus.component.stores.Subscription;
+import tigase.disteventbus.component.stores.SubscriptionStore;
+import tigase.disteventbus.impl.LocalEventBus;
+import tigase.kernel.Inject;
 import tigase.server.Packet;
 import tigase.util.TigaseStringprepException;
 import tigase.xml.Element;
@@ -19,13 +24,24 @@ public class EventReceiverModule extends AbstractEventBusModule {
 
 	public final static String ID = "receiver";
 
+	@Inject
+	private AffiliationStore affiliationStore;
+
+	@Inject
 	private EventPublisherModule eventPublisherModule;
 
-	@Override
-	public void afterRegistration() {
-		super.afterRegistration();
+	@Inject(bean = "localEventBus")
+	private LocalEventBus localEventBus;
 
-		eventPublisherModule = context.getModuleProvider().getModule(EventPublisherModule.ID);
+	@Inject
+	private SubscriptionStore subscriptionStore;
+
+	public AffiliationStore getAffiliationStore() {
+		return affiliationStore;
+	}
+
+	public EventPublisherModule getEventPublisherModule() {
+		return eventPublisherModule;
 	}
 
 	@Override
@@ -33,14 +49,22 @@ public class EventReceiverModule extends AbstractEventBusModule {
 		return null;
 	}
 
+	public LocalEventBus getLocalEventBus() {
+		return localEventBus;
+	}
+
 	@Override
 	public Criteria getModuleCriteria() {
 		return CRIT;
 	}
 
+	public SubscriptionStore getSubscriptionStore() {
+		return subscriptionStore;
+	}
+
 	@Override
 	public void process(Packet packet) throws ComponentException, TigaseStringprepException {
-		final Affiliation affiliation = context.getAffiliationStore().getAffiliation(packet.getStanzaFrom());
+		final Affiliation affiliation = affiliationStore.getAffiliation(packet.getStanzaFrom());
 		if (!affiliation.isPublishItem())
 			throw new ComponentException(Authorization.FORBIDDEN);
 
@@ -61,21 +85,37 @@ public class EventReceiverModule extends AbstractEventBusModule {
 		for (Element item : itemsElem.getChildren()) {
 			if (!"item".equals(item.getName()))
 				continue;
-			for (Element event : item.getChildren()) {
+			for (Element ex : item.getChildren()) {
+				final EventElement event = new EventElement(ex);
 				String eventName = event.getName();
 				String eventXmlns = event.getXMLNS();
 
 				if (log.isLoggable(Level.FINER))
 					log.finer("Received event (" + eventName + ", " + eventXmlns + "): " + event);
 
-				context.getEventBusInstance().doFire(eventName, eventXmlns, event);
+				localEventBus.doFire(eventName, eventXmlns, event);
 
-				final Collection<Subscription> subscribers = context.getSubscriptionStore().getSubscribersJIDs(eventName,
-						eventXmlns);
+				final Collection<Subscription> subscribers = subscriptionStore.getSubscribersJIDs(eventName, eventXmlns);
 				eventPublisherModule.publishEvent(eventName, eventXmlns, event, subscribers);
 			}
 		}
 
+	}
+
+	public void setAffiliationStore(AffiliationStore affiliationStore) {
+		this.affiliationStore = affiliationStore;
+	}
+
+	public void setEventPublisherModule(EventPublisherModule eventPublisherModule) {
+		this.eventPublisherModule = eventPublisherModule;
+	}
+
+	public void setLocalEventBus(LocalEventBus localEventBus) {
+		this.localEventBus = localEventBus;
+	}
+
+	public void setSubscriptionStore(SubscriptionStore subscriptionStore) {
+		this.subscriptionStore = subscriptionStore;
 	}
 
 }

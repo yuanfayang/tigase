@@ -8,6 +8,7 @@ import java.util.Properties;
 
 import javax.script.ScriptException;
 
+import tigase.kernel.Initializable;
 import tigase.kernel.Inject;
 import tigase.kernel.Kernel;
 import tigase.monitor.tasks.ScriptTask;
@@ -15,7 +16,7 @@ import tigase.monitor.tasks.ScriptTimerTask;
 import tigase.util.Algorithms;
 import tigase.util.Base64;
 
-public class TasksScriptRegistrar {
+public class TasksScriptRegistrar implements Initializable {
 
 	public static final String ID = "TasksScriptRegistrar";
 
@@ -24,11 +25,21 @@ public class TasksScriptRegistrar {
 
 	private String scriptPath = "./monitorScripts";
 
+	public void delete(String taskName) {
+		File par = new File(scriptPath);
+		if (!par.exists())
+			return;
+
+		File f = new File(par, Algorithms.sha256(taskName) + ".script");
+		f.delete();
+	}
+
 	public Kernel getKernel() {
 		return kernel;
 	}
 
-	public void load() {
+	@Override
+	public void initialize() {
 		File par = new File(scriptPath);
 
 		for (File f : par.listFiles()) {
@@ -119,15 +130,6 @@ public class TasksScriptRegistrar {
 
 	public void setKernel(Kernel kernel) {
 		this.kernel = kernel;
-	}
-
-	public void delete(String taskName) {
-		File par = new File(scriptPath);
-		if (!par.exists())
-			return;
-
-		File f = new File(par, Algorithms.sha256(taskName) + ".script");
-		f.delete();
 	}
 
 }

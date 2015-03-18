@@ -17,27 +17,35 @@
  */
 package tigase.component.modules.impl;
 
-import tigase.component.Context;
+import tigase.component.AbstractComponent;
 import tigase.component.exceptions.ComponentException;
 import tigase.component.modules.AbstractModule;
 import tigase.criteria.Criteria;
 import tigase.criteria.ElementCriteria;
+import tigase.kernel.Inject;
 import tigase.server.Packet;
 import tigase.xml.Element;
 
 /**
  * Class description
- * 
- * 
+ *
+ *
  */
-public class JabberVersionModule<CTX extends Context> extends AbstractModule<CTX> {
+public class JabberVersionModule extends AbstractModule {
 
 	private static final Criteria CRIT = ElementCriteria.nameType("iq", "get").add(
 			ElementCriteria.name("query", "jabber:iq:version"));
 
 	public final static String ID = "jabber:iq:version";
 
+	@Inject(bean = "component")
+	private AbstractComponent component;
+
 	public JabberVersionModule() {
+	}
+
+	public AbstractComponent getComponent() {
+		return component;
 	}
 
 	@Override
@@ -54,13 +62,17 @@ public class JabberVersionModule<CTX extends Context> extends AbstractModule<CTX
 	public void process(Packet packet) throws ComponentException {
 		Element query = new Element("query", new String[] { "xmlns" }, new String[] { "jabber:iq:version" });
 
-		query.addChild(new Element("name", context.getDiscoDescription()));
-		query.addChild(new Element("version", context.getComponentVersion()));
+		query.addChild(new Element("name", component.getDiscoDescription()));
+		query.addChild(new Element("version", component.getComponentVersion()));
 		query.addChild(new Element("os", System.getProperty("os.name") + "-" + System.getProperty("os.arch") + "-"
 				+ System.getProperty("os.version") + ", " + System.getProperty("java.vm.name") + "-"
 				+ System.getProperty("java.version") + " " + System.getProperty("java.vm.vendor")));
 
 		write(packet.okResult(query, 0));
+	}
+
+	public void setComponent(AbstractComponent component) {
+		this.component = component;
 	}
 
 }

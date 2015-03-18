@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -70,14 +71,45 @@ public class DependencyManager {
 		return result;
 	}
 
+	public Collection<Dependency> getDependenciesTo(BeanConfig destination) {
+		HashSet<Dependency> result = new HashSet<Dependency>();
+		for (BeanConfig candidate : beanConfigs.values()) {
+			for (Dependency dp : candidate.getFieldDependencies().values()) {
+				List<BeanConfig> bcs = Arrays.asList(getBeanConfig(dp));
+				if (bcs.contains(destination)) {
+					result.add(dp);
+				}
+			}
+		}
+		return result;
+	}
+
+	public HashSet<BeanConfig> getDependentBeans(final BeanConfig beanConfig) {
+		HashSet<BeanConfig> result = new HashSet<BeanConfig>();
+		for (BeanConfig candidate : beanConfigs.values()) {
+			for (Dependency dp : candidate.getFieldDependencies().values()) {
+				List<BeanConfig> bcs = Arrays.asList(getBeanConfig(dp));
+				if (bcs.contains(beanConfig)) {
+					result.add(candidate);
+				}
+			}
+		}
+		return result;
+	}
+
+	public boolean isBeanClassRegistered(String beanName) {
+		return beanConfigs.containsKey(beanName);
+	}
+
 	protected void prepareDependencies(BeanConfig beanConfig) {
 		final String id = beanConfig.getBeanName();
 		final Class<?> cls = beanConfig.getClazz();
 
 		Map<Field, Inject> deps = createFieldsDependencyList(cls);
 		for (Entry<Field, Inject> e : deps.entrySet()) {
-			Dependency d = new Dependency();
+			Dependency d = new Dependency(beanConfig);
 			d.setField(e.getKey());
+			d.setNullAllowed(e.getValue().nullAllowed());
 			if (!e.getValue().bean().isEmpty()) {
 				d.setBeanName(e.getValue().bean());
 			} else if (e.getValue().type() != Inject.EMPTY.class) {
@@ -100,7 +132,7 @@ public class DependencyManager {
 		return c;
 	}
 
-	public void unregister(String beanName) {
-		beanConfigs.remove(beanName);
+	public BeanConfig unregister(String beanName) {
+		return beanConfigs.remove(beanName);
 	}
 }

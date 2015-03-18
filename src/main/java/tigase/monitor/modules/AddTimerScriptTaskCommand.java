@@ -6,7 +6,8 @@ import tigase.component.adhoc.AdHocResponse;
 import tigase.component.adhoc.AdhHocRequest;
 import tigase.form.Field;
 import tigase.form.Form;
-import tigase.monitor.MonitorContext;
+import tigase.kernel.Inject;
+import tigase.kernel.Kernel;
 import tigase.monitor.tasks.ScriptTimerTask;
 import tigase.xml.Element;
 import tigase.xmpp.Authorization;
@@ -14,11 +15,10 @@ import tigase.xmpp.JID;
 
 public class AddTimerScriptTaskCommand implements AdHocCommand {
 
-	private MonitorContext monitorContext;
+	public static final String ID = "x-add-timer-task";
 
-	public AddTimerScriptTaskCommand(MonitorContext monitorContext) {
-		this.monitorContext = monitorContext;
-	}
+	@Inject
+	private Kernel kernel;
 
 	@Override
 	public void execute(AdhHocRequest request, AdHocResponse response) throws AdHocCommandException {
@@ -46,8 +46,8 @@ public class AddTimerScriptTaskCommand implements AdHocCommand {
 					String scriptContent = form.getAsString("scriptContent");
 					Long delay = form.getAsLong("delay");
 
-					monitorContext.getKernel().registerBeanClass(scriptName, ScriptTimerTask.class);
-					ScriptTimerTask scriptTask = monitorContext.getKernel().getInstance(scriptName);
+					kernel.registerBeanClass(scriptName, ScriptTimerTask.class);
+					ScriptTimerTask scriptTask = kernel.getInstance(scriptName);
 					scriptTask.run(scriptContent, scriptExtension, delay);
 				}
 
@@ -60,6 +60,10 @@ public class AddTimerScriptTaskCommand implements AdHocCommand {
 		}
 	}
 
+	public Kernel getKernel() {
+		return kernel;
+	}
+
 	@Override
 	public String getName() {
 		return "Add monitor timer task";
@@ -67,12 +71,16 @@ public class AddTimerScriptTaskCommand implements AdHocCommand {
 
 	@Override
 	public String getNode() {
-		return "x-add-timer-task";
+		return ID;
 	}
 
 	@Override
 	public boolean isAllowedFor(JID jid) {
 		return true;
+	}
+
+	public void setKernel(Kernel kernel) {
+		this.kernel = kernel;
 	}
 
 }

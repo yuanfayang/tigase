@@ -1,11 +1,11 @@
 package tigase.monitor.tasks;
 
+import tigase.component.PacketWriter;
 import tigase.form.Field;
 import tigase.form.Form;
 import tigase.kernel.Initializable;
 import tigase.kernel.Inject;
 import tigase.monitor.InfoTask;
-import tigase.monitor.MonitorContext;
 import tigase.monitor.MonitorTask;
 import tigase.monitor.TimerTaskService;
 import tigase.server.Packet;
@@ -14,9 +14,6 @@ import tigase.util.TimerTask;
 import tigase.xml.Element;
 
 public class MemoryMonitorTask implements MonitorTask, Initializable, InfoTask {
-
-	@Inject
-	private MonitorContext context;
 
 	private final Runtime runtime = Runtime.getRuntime();
 
@@ -39,7 +36,7 @@ public class MemoryMonitorTask implements MonitorTask, Initializable, InfoTask {
 				try {
 					p = Packet.packetInstance(m);
 					p.setXMLNS(Packet.CLIENT_XMLNS);
-					context.getWriter().write(p);
+					writer.write(p);
 				} catch (TigaseStringprepException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -49,12 +46,11 @@ public class MemoryMonitorTask implements MonitorTask, Initializable, InfoTask {
 		}
 	};
 
+	@Inject
+	private PacketWriter writer;
+
 	public MemoryMonitorTask() {
 
-	}
-
-	public MonitorContext getContext() {
-		return context;
 	}
 
 	@Override
@@ -70,17 +66,21 @@ public class MemoryMonitorTask implements MonitorTask, Initializable, InfoTask {
 		return timerTaskService;
 	}
 
+	public PacketWriter getWriter() {
+		return writer;
+	}
+
 	@Override
 	public void initialize() {
 		timerTaskService.addTimerTask(worker, 1000l, 1000l);
 	}
 
-	public void setContext(MonitorContext context) {
-		this.context = context;
-	}
-
 	public void setTimerTaskService(TimerTaskService timerTaskService) {
 		this.timerTaskService = timerTaskService;
+	}
+
+	public void setWriter(PacketWriter writer) {
+		this.writer = writer;
 	}
 
 }

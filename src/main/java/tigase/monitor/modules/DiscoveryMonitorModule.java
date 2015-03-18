@@ -7,10 +7,11 @@ import java.util.List;
 import tigase.component.exceptions.ComponentException;
 import tigase.component.exceptions.RepositoryException;
 import tigase.component.modules.impl.DiscoveryModule;
+import tigase.kernel.Inject;
+import tigase.kernel.Kernel;
 import tigase.monitor.AdHocTask;
 import tigase.monitor.ConfigurableTask;
 import tigase.monitor.InfoTask;
-import tigase.monitor.MonitorContext;
 import tigase.monitor.MonitorTask;
 import tigase.server.Command;
 import tigase.server.Packet;
@@ -18,7 +19,14 @@ import tigase.xml.Element;
 import tigase.xmpp.Authorization;
 import tigase.xmpp.JID;
 
-public class DiscoveryMonitorModule extends DiscoveryModule<MonitorContext> {
+public class DiscoveryMonitorModule extends DiscoveryModule {
+
+	@Inject
+	private Kernel kernel;
+
+	public Kernel getKernel() {
+		return kernel;
+	}
 
 	private boolean isAdHocCompatible(Object taskInstance) {
 		return taskInstance != null
@@ -28,8 +36,8 @@ public class DiscoveryMonitorModule extends DiscoveryModule<MonitorContext> {
 	@Override
 	protected void processAdHocCommandItems(Packet packet, JID jid, String node, JID senderJID) throws ComponentException,
 	RepositoryException {
-		if (jid.getResource() != null && isAdHocCompatible(context.getKernel().getInstance(jid.getResource()))) {
-			final Object taskInstance = context.getKernel().getInstance(jid.getResource());
+		if (jid.getResource() != null && isAdHocCompatible(kernel.getInstance(jid.getResource()))) {
+			final Object taskInstance = kernel.getInstance(jid.getResource());
 
 			List<Element> items = new ArrayList<Element>();
 			Element resultQuery = new Element("query", new String[] { Packet.XMLNS_ATT }, new String[] { DISCO_ITEMS_XMLNS });
@@ -62,8 +70,8 @@ public class DiscoveryMonitorModule extends DiscoveryModule<MonitorContext> {
 	RepositoryException {
 		if (jid.getResource() == null) {
 			super.processDiscoInfo(packet, jid, node, senderJID);
-		} else if (jid.getResource() != null && context.getKernel().getInstance(jid.getResource()) != null) {
-			final Object taskInstance = context.getKernel().getInstance(jid.getResource());
+		} else if (jid.getResource() != null && kernel.getInstance(jid.getResource()) != null) {
+			final Object taskInstance = kernel.getInstance(jid.getResource());
 
 			Element resultQuery = new Element("query", new String[] { "xmlns" }, new String[] { DISCO_INFO_XMLNS });
 			Packet resultIq = packet.okResult(resultQuery, 0);
@@ -87,7 +95,7 @@ public class DiscoveryMonitorModule extends DiscoveryModule<MonitorContext> {
 		if (node == null && jid.getResource() == null) {
 			Element resultQuery = new Element("query", new String[] { Packet.XMLNS_ATT }, new String[] { DISCO_ITEMS_XMLNS });
 
-			Collection<String> taskNames = context.getKernel().getNamesOf(MonitorTask.class);
+			Collection<String> taskNames = kernel.getNamesOf(MonitorTask.class);
 			for (String taskName : taskNames) {
 				resultQuery.addChild(new Element("item", new String[] { "jid", "name" }, new String[] {
 						jid.toString() + "/" + taskName, "Task " + taskName }));
@@ -98,5 +106,9 @@ public class DiscoveryMonitorModule extends DiscoveryModule<MonitorContext> {
 			Element resultQuery = new Element("query", new String[] { Packet.XMLNS_ATT }, new String[] { DISCO_ITEMS_XMLNS });
 			write(packet.okResult(resultQuery, 0));
 		}
+	}
+
+	public void setKernel(Kernel kernel) {
+		this.kernel = kernel;
 	}
 }

@@ -6,25 +6,30 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 
+import tigase.kernel.Initializable;
+import tigase.kernel.Inject;
+import tigase.kernel.Kernel;
 import tigase.util.Algorithms;
 import tigase.util.Base64;
 
-public class ListenerScriptRegistrar {
+public class ListenerScriptRegistrar implements Initializable {
 
-	private EventBusContext context;
-	private Map<String, ListenerScript> listenersScripts;
+	@Inject
+	private Kernel kernel;
+
+	private final Map<String, ListenerScript> listenersScripts = new ConcurrentHashMap<String, ListenerScript>();
+
+	@Inject
 	private ScriptEngineManager scriptEngineManager;
+
 	private String scriptPath = "./listenerScripts";
 
-	public ListenerScriptRegistrar(Map<String, ListenerScript> listenersScripts, EventBusContext context,
-			ScriptEngineManager scriptEngineManager) {
-		this.context = context;
-		this.listenersScripts = listenersScripts;
-		this.scriptEngineManager = scriptEngineManager;
+	public ListenerScriptRegistrar() {
 	}
 
 	public void delete(String taskName) {
@@ -36,7 +41,20 @@ public class ListenerScriptRegistrar {
 		f.delete();
 	}
 
-	public void load() {
+	public Kernel getKernel() {
+		return kernel;
+	}
+
+	public Map<String, ListenerScript> getListenersScripts() {
+		return listenersScripts;
+	}
+
+	public ScriptEngineManager getScriptEngineManager() {
+		return scriptEngineManager;
+	}
+
+	@Override
+	public void initialize() {
 		File par = new File(scriptPath);
 
 		for (File f : par.listFiles()) {
@@ -79,7 +97,7 @@ public class ListenerScriptRegistrar {
 			String eventXMLNS) throws ScriptException {
 		ListenerScript ls = new ListenerScript();
 		listenersScripts.put(scriptName, ls);
-		ls.run(context, scriptEngineManager, scriptName, scriptExtension, scriptContent,
+		ls.run(kernel, scriptEngineManager, scriptName, scriptExtension, scriptContent,
 				eventName == null || eventName.isEmpty() ? null : eventName, eventXMLNS);
 	}
 
@@ -105,6 +123,14 @@ public class ListenerScriptRegistrar {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+
+	public void setKernel(Kernel kernel) {
+		this.kernel = kernel;
+	}
+
+	public void setScriptEngineManager(ScriptEngineManager scriptEngineManager) {
+		this.scriptEngineManager = scriptEngineManager;
 	}
 
 }

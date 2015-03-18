@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
 
-import tigase.component.Context;
 import tigase.server.Packet;
 import tigase.xmpp.JID;
 
@@ -55,9 +54,6 @@ public class ResponseManager {
 
 	protected final Logger log = Logger.getLogger(this.getClass().getName());
 
-	public ResponseManager(Context context) {
-	}
-
 	public void checkTimeouts() {
 		long now = (new Date()).getTime();
 		Iterator<java.util.Map.Entry<String, Entry>> it = this.getHandlers().entrySet().iterator();
@@ -76,7 +72,7 @@ public class ResponseManager {
 
 	/**
 	 * Returns handler for response of sent {@code  <iq/>} stanza.
-	 * 
+	 *
 	 * @param element
 	 *            response {@code  <iq/>} stanza.
 	 * @return Runnable object with handler
@@ -107,7 +103,7 @@ public class ResponseManager {
 
 	/**
 	 * Register callback for response of sent {@code <iq/>} stanza.
-	 * 
+	 *
 	 * @param stanza
 	 *            sent {@code <iq/>} stanza.
 	 * @param timeout

@@ -1,7 +1,6 @@
 package tigase.disteventbus.component;
 
 import java.util.Collection;
-import java.util.Map;
 
 import tigase.component.adhoc.AdHocCommand;
 import tigase.component.adhoc.AdHocCommandException;
@@ -9,19 +8,19 @@ import tigase.component.adhoc.AdHocResponse;
 import tigase.component.adhoc.AdhHocRequest;
 import tigase.form.Field;
 import tigase.form.Form;
+import tigase.kernel.Inject;
 import tigase.xml.Element;
 import tigase.xmpp.Authorization;
 import tigase.xmpp.JID;
 
 public class RemoveListenerScriptCommand implements AdHocCommand {
 
-	private ListenerScriptRegistrar listenerScriptRegistrar;
-	private Map<String, ListenerScript> listenersScripts;
+	public static final String ID = "remove-listener-script";
 
-	public RemoveListenerScriptCommand(Map<String, ListenerScript> listenersScripts,
-			ListenerScriptRegistrar listenerScriptRegistrar) {
-		this.listenersScripts = listenersScripts;
-		this.listenerScriptRegistrar = listenerScriptRegistrar;
+	@Inject
+	private ListenerScriptRegistrar listenerScriptRegistrar;
+
+	public RemoveListenerScriptCommand() {
 	}
 
 	@Override
@@ -34,7 +33,7 @@ public class RemoveListenerScriptCommand implements AdHocCommand {
 			} else if (data == null) {
 				Form form = new Form("form", "Delete listener script", null);
 
-				Collection<String> scriptNames = listenersScripts.keySet();
+				Collection<String> scriptNames = listenerScriptRegistrar.getListenersScripts().keySet();
 
 				form.addField(Field.fieldListSingle("delete_script", "", "Script to delete",
 						scriptNames.toArray(new String[] {}), scriptNames.toArray(new String[] {})));
@@ -48,7 +47,7 @@ public class RemoveListenerScriptCommand implements AdHocCommand {
 					String scriptName = form.getAsString("delete_script");
 
 					listenerScriptRegistrar.delete(scriptName);
-					ListenerScript i = listenersScripts.remove(scriptName);
+					ListenerScript i = listenerScriptRegistrar.getListenersScripts().remove(scriptName);
 					if (i != null) {
 						i.unregister();
 					} else
@@ -64,6 +63,10 @@ public class RemoveListenerScriptCommand implements AdHocCommand {
 		}
 	}
 
+	public ListenerScriptRegistrar getListenerScriptRegistrar() {
+		return listenerScriptRegistrar;
+	}
+
 	@Override
 	public String getName() {
 		return "Remove listener script";
@@ -71,12 +74,16 @@ public class RemoveListenerScriptCommand implements AdHocCommand {
 
 	@Override
 	public String getNode() {
-		return "remove-listener-script";
+		return ID;
 	}
 
 	@Override
 	public boolean isAllowedFor(JID jid) {
 		return true;
+	}
+
+	public void setListenerScriptRegistrar(ListenerScriptRegistrar listenerScriptRegistrar) {
+		this.listenerScriptRegistrar = listenerScriptRegistrar;
 	}
 
 }

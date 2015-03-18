@@ -1,5 +1,7 @@
 package tigase.kernel;
 
+import java.util.HashSet;
+
 public class DependencyGrapher {
 
 	private Kernel kernel;
@@ -13,10 +15,10 @@ public class DependencyGrapher {
 
 	public String getDependencyGraph() {
 		StringBuilder sb = new StringBuilder();
-		sb.append("digraph g{\n");
+		sb.append("digraph ").append(kernel.getName()).append(" {\n");
 
 		for (BeanConfig bc : kernel.getDependencyManager().getBeanConfigs()) {
-			sb.append(bc.getBeanName()).append("[");
+			sb.append('"').append(bc.getBeanName()).append('"').append("[");
 
 			sb.append("label=<");
 			sb.append(bc.getBeanName()).append("<br/>").append("(").append(bc.getClazz().getName()).append(")");
@@ -27,22 +29,30 @@ public class DependencyGrapher {
 		}
 
 		int c = 0;
+		HashSet<String> tmp = new HashSet<String>();
 		for (BeanConfig bc : kernel.getDependencyManager().getBeanConfigs()) {
 			++c;
 			for (Dependency dp : bc.getFieldDependencies().values()) {
 				BeanConfig[] dBeans = kernel.getDependencyManager().getBeanConfig(dp);
 				for (BeanConfig dBean : dBeans) {
-
-					sb.append(bc.getBeanName()).append(':').append(dp.getField().getName());
-					sb.append("->");
+					StringBuilder sbi = new StringBuilder();
+					sbi.append('"').append(bc.getBeanName()).append('"');
+					// sb.append(':').append(dp.getField().getName());
+					sbi.append("->");
 					if (dBean == null)
-						sb.append("{UNKNOWN_").append(c).append("[label=\"").append(dp).append(
+						sbi.append("{UNKNOWN_").append(c).append("[label=\"").append(dp).append(
 								"\", fillcolor=red, style=filled, shape=box]}");
 					else
-						sb.append(dBean.getBeanName());
-					sb.append('\n');
+						sbi.append('"').append(dBean.getBeanName()).append('"');
+
+					tmp.add(sbi.toString());
+
 				}
 			}
+		}
+
+		for (String string : tmp) {
+			sb.append(string).append('\n');
 		}
 
 		sb.append("}\n");

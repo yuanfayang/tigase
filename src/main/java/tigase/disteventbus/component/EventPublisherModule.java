@@ -7,16 +7,24 @@ import tigase.component.exceptions.ComponentException;
 import tigase.criteria.Criteria;
 import tigase.disteventbus.EventHandler;
 import tigase.disteventbus.component.stores.Subscription;
+import tigase.disteventbus.component.stores.SubscriptionStore;
+import tigase.disteventbus.impl.LocalEventBus;
 import tigase.disteventbus.impl.LocalEventBus.LocalEventBusListener;
+import tigase.kernel.Initializable;
+import tigase.kernel.Inject;
+import tigase.kernel.UnregisterAware;
 import tigase.server.Packet;
 import tigase.server.Permissions;
 import tigase.util.TigaseStringprepException;
 import tigase.xml.Element;
 import tigase.xmpp.JID;
 
-public class EventPublisherModule extends AbstractEventBusModule {
+public class EventPublisherModule extends AbstractEventBusModule implements Initializable, UnregisterAware {
 
 	public final static String ID = "publisher";
+
+	@Inject
+	private EventBusComponent component;
 
 	private final LocalEventBusListener eventBusListener = new LocalEventBusListener() {
 
@@ -34,11 +42,19 @@ public class EventPublisherModule extends AbstractEventBusModule {
 		}
 	};
 
-	@Override
-	public void afterRegistration() {
-		super.afterRegistration();
+	@Inject(bean = "localEventBus")
+	private LocalEventBus localEventBus;
 
-		context.getEventBusInstance().addListener(eventBusListener);
+	@Inject
+	private SubscriptionStore subscriptionStore;
+
+	@Override
+	public void beforeUnregister() {
+		localEventBus.removeListener(eventBusListener);
+	}
+
+	public EventBusComponent getComponent() {
+		return component;
 	}
 
 	@Override
@@ -46,9 +62,22 @@ public class EventPublisherModule extends AbstractEventBusModule {
 		return null;
 	}
 
+	public LocalEventBus getLocalEventBus() {
+		return localEventBus;
+	}
+
 	@Override
 	public Criteria getModuleCriteria() {
 		return null;
+	}
+
+	public SubscriptionStore getSubscriptionStore() {
+		return subscriptionStore;
+	}
+
+	@Override
+	public void initialize() {
+		localEventBus.addListener(eventBusListener);
 	}
 
 	@Override
@@ -71,7 +100,7 @@ public class EventPublisherModule extends AbstractEventBusModule {
 	}
 
 	public void publishEvent(String name, String xmlns, Element event) {
-		final Collection<Subscription> subscribers = context.getSubscriptionStore().getSubscribersJIDs(name, xmlns);
+		final Collection<Subscription> subscribers = subscriptionStore.getSubscribersJIDs(name, xmlns);
 		publishEvent(name, xmlns, event, subscribers);
 	}
 
@@ -93,7 +122,7 @@ public class EventPublisherModule extends AbstractEventBusModule {
 
 				String from;
 				if (subscriber.getServiceJID() == null) {
-					from = context.getComponentID().toString();
+					from = component.getComponentId().toString();
 				} else {
 					from = subscriber.getServiceJID().toString();
 				}
@@ -106,10 +135,16 @@ public class EventPublisherModule extends AbstractEventBusModule {
 		}
 	}
 
-	@Override
-	public void unregisterModule() {
-		context.getEventBusInstance().removeListener(eventBusListener);
-		super.unregisterModule();
+	public void setComponent(EventBusComponent component) {
+		this.component = component;
+	}
+
+	public void setLocalEventBus(LocalEventBus localEventBus) {
+		this.localEventBus = localEventBus;
+	}
+
+	public void setSubscriptionStore(SubscriptionStore subscriptionStore) {
+		this.subscriptionStore = subscriptionStore;
 	}
 
 }

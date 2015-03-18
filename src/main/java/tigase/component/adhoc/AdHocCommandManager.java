@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import tigase.component.adhoc.AdHocResponse.State;
+import tigase.kernel.Inject;
 import tigase.server.Packet;
 import tigase.util.SimpleCache;
 import tigase.xml.Element;
@@ -33,7 +34,12 @@ import tigase.xmpp.JID;
  *
  */
 public class AdHocCommandManager {
+
+	@Inject
+	private AdHocCommand[] allCommands;
+
 	private final Map<String, AdHocCommand> commands = new HashMap<String, AdHocCommand>();
+
 	private final SimpleCache<String, AdHocSession> sessions = new SimpleCache<String, AdHocSession>(100, 10 * 1000);
 
 	/**
@@ -123,7 +129,16 @@ public class AdHocCommandManager {
 	 *
 	 * @param command
 	 */
+	@Deprecated
 	public void registerCommand(AdHocCommand command) {
 		this.commands.put(command.getNode(), command);
+	}
+
+	public void setAllCommands(AdHocCommand[] allCommands) {
+		this.allCommands = allCommands;
+		this.commands.clear();
+		for (AdHocCommand adHocCommand : allCommands) {
+			this.commands.put(adHocCommand.getNode(), adHocCommand);
+		}
 	}
 }

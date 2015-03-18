@@ -26,13 +26,12 @@ package tigase.server;
 
 //~--- non-JDK imports --------------------------------------------------------
 
+import tigase.kernel.DependencyGrapher;
+import tigase.kernel.Kernel;
+import tigase.kernel.Registrar;
 import tigase.osgi.ModulesManagerImpl;
-
 import tigase.util.DNSResolver;
-
 import static tigase.conf.Configurable.*;
-
-//~--- JDK imports ------------------------------------------------------------
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -416,8 +415,18 @@ public class MessageRouterConfig {
 		if (((cls == null) && (!XMPPServer.isOSGi() || COMPONENT_CLASSES.containsValue(
 				cls_name) || COMP_CLUS_MAP.containsValue(cls_name))) || EXT_COMP_CLASS_NAME
 				.equals(cls_name)  || "tigase.cluster.VirtualComponent".equals(cls_name)) {
-			cls = (ServerComponent) this.getClass().getClassLoader().loadClass(cls_name)
-					.newInstance();
+			Class<?> cc = (Class<?>) this.getClass().getClassLoader().loadClass(cls_name);
+			if (Registrar.class.isAssignableFrom(cc)) {
+				if (log.isLoggable(Level.FINE))
+					log.fine("Component " + name + " is has Kernel registrar!");
+				final Registrar r = (Registrar) cc.newInstance();
+				final Kernel kernel = new Kernel(name);
+				r.register(kernel);
+				cls = kernel.getInstance(ServerComponent.class);
+				System.out.println((new DependencyGrapher(kernel)).getDependencyGraph());
+			} else {
+				cls = (ServerComponent) cc.newInstance();
+			}
 		}
 
 		return cls;
