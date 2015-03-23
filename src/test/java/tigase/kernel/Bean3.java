@@ -15,13 +15,13 @@ public class Bean3 implements Special {
 	public Bean4 getBean41() {
 		return bean41;
 	}
-
-	public void setBean4(Bean4 bean4) {
-		this.bean4 = bean4;
-	}
-
-	public void setBean41(Bean4 bean41) {
-		this.bean41 = bean41;
-	}
+//
+//	public void setBean4(Bean4 bean4) {
+//		this.bean4 = bean4;
+//	}
+//
+//	public void setBean41(Bean4 bean41) {
+//		this.bean41 = bean41;
+//	}
 
 }

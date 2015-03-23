@@ -191,9 +191,9 @@ public class Kernel {
 		if (!dependency.isNullAllowed() && data == null)
 			throw new KernelException("Can't inject <null> to field " + dependency.getField());
 
+		Object valueToSet;
 		if (data == null) {
-			Method setter = prepareSetterMethod(dependency.getField());
-			setter.invoke(toBean, (Object) null);
+			valueToSet = (Object) null;
 		} else if (Collection.class.isAssignableFrom(dependency.getField().getType())) {
 			Collection o;
 
@@ -207,8 +207,7 @@ public class Kernel {
 
 			o.addAll(Arrays.asList(data));
 
-			Method setter = prepareSetterMethod(dependency.getField());
-			setter.invoke(toBean, o);
+			valueToSet = o;
 		} else {
 			Object o;
 			if (data != null && dependency.getField().getType().equals(data.getClass())) {
@@ -223,8 +222,15 @@ public class Kernel {
 					o = Array.get(data, 0);
 			}
 
-			Method setter = prepareSetterMethod(dependency.getField());
-			setter.invoke(toBean, o);
+			valueToSet = o;
+		}
+		
+		Method setter = prepareSetterMethod(dependency.getField());
+		if (setter != null) {
+			setter.invoke(toBean, valueToSet);
+		} else {
+			dependency.getField().setAccessible(true);
+			dependency.getField().set(toBean, valueToSet);
 		}
 	}
 
@@ -297,7 +303,8 @@ public class Kernel {
 			Method m = f.getDeclaringClass().getMethod(sm, f.getType());
 			return m;
 		} catch (NoSuchMethodException e) {
-			throw new KernelException("Class " + f.getDeclaringClass().getName() + " has no setter of field " + f.getName(), e);
+			return null;
+			//throw new KernelException("Class " + f.getDeclaringClass().getName() + " has no setter of field " + f.getName(), e);
 		}
 	}
 
