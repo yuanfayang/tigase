@@ -42,12 +42,14 @@ public class KernelTest {
 	@Test
 	public void test() throws IllegalAccessException, IllegalArgumentException, InvocationTargetException {
 		Kernel krnl = new Kernel();
-		krnl.registerBeanClass("bean1", Bean1.class);
-		krnl.registerBeanClass("bean2", Bean2.class);
-		krnl.registerBeanClass("bean3", Bean3.class);
-		krnl.registerBeanClass("bean4", Bean4.class);
-		krnl.registerBeanClass("bean4_1", Bean4.class);
-		krnl.registerBeanClass("bean5", Bean5.class, Bean5Factory.class);
+
+		Bean4 bean4_1_o = new Bean4();
+		krnl.registerBean(Bean1.class).exec();
+		krnl.registerBean("bean2").asClass(Bean2.class).exec();
+		krnl.registerBean("bean3").asClass(Bean3.class).exec();
+		krnl.registerBean("bean4").asClass(Bean4.class).exec();
+		krnl.registerBean("bean4_1").asInstance(bean4_1_o).exec();
+		krnl.registerBean("bean5").asClass(Bean5.class).withFactory(Bean5Factory.class).exec();
 
 		DependencyGrapher dg = new DependencyGrapher(krnl);
 		System.out.println(dg.getDependencyGraph());
@@ -63,6 +65,8 @@ public class KernelTest {
 		assertNotNull(b3);
 		assertNotNull(b4);
 		assertNotNull(b41);
+
+		assertEquals(b41, bean4_1_o);
 
 		assertTrue(b1 instanceof Bean1);
 		assertTrue(b2 instanceof Bean2);
@@ -101,7 +105,7 @@ public class KernelTest {
 		assertTrue(b1.getXxx().contains(b3));
 		assertTrue(b1.getXxx().contains(b4));
 
-		krnl.registerBeanClass("bean6", Bean6.class);
+		krnl.registerBean("bean6").asClass(Bean6.class).exec();
 
 		assertEquals(3, b1.getSs().length);
 		assertEquals(3, b1.getXxx().size());
@@ -113,15 +117,15 @@ public class KernelTest {
 	@Test
 	public void test2() throws IllegalAccessException, IllegalArgumentException, InvocationTargetException {
 		Kernel krnl = new Kernel();
-		krnl.registerBeanClass("bean7", Bean7.class);
+		krnl.registerBean("bean7").asClass(Bean7.class).exec();
 
-		krnl.registerBeanClass("beanX", Bean4.class);
-		krnl.registerBeanClass("beanX", Bean5.class, Bean5Factory.class);
+		krnl.registerBean("beanX").asClass(Bean4.class).exec();
+		krnl.registerBean("beanX").asClass(Bean5.class).withFactory(Bean5Factory.class).exec();
 
 		assertEquals(Bean5.class, krnl.getInstance(Bean7.class).getObj().getClass());
 		assertEquals(Bean5.class, krnl.getInstance("beanX").getClass());
 
-		krnl.registerBeanClass("beanX", Bean6.class);
+		krnl.registerBean("beanX").asClass(Bean6.class).exec();
 
 		assertEquals(Bean6.class, krnl.getInstance("beanX").getClass());
 		assertEquals(Bean6.class, krnl.getInstance(Bean7.class).getObj().getClass());

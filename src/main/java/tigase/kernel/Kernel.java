@@ -17,6 +17,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import tigase.kernel.BeanConfig.State;
+import tigase.kernel.configbuilder.TypeBeanBuilder;
 
 public class Kernel {
 
@@ -38,6 +39,8 @@ public class Kernel {
 	}
 
 	private final Map<BeanConfig, Object> beanInstances = new HashMap<BeanConfig, Object>();
+
+	BeanConfigBuilder currentlyUsedConfigBuilder;
 
 	private final DependencyManager dependencyManager = new DependencyManager();
 
@@ -68,6 +71,10 @@ public class Kernel {
 		} catch (Exception e) {
 			throw new KernelException("Can't create instance of bean '" + beanConfig.getBeanName() + "'", e);
 		}
+	}
+
+	Map<BeanConfig, Object> getBeanInstances() {
+		return beanInstances;
 	}
 
 	DependencyManager getDependencyManager() {
@@ -149,7 +156,7 @@ public class Kernel {
 	}
 
 	private void initBean(BeanConfig beanConfig, Set<BeanConfig> createdBeansConfig, int deep) throws IllegalAccessException,
-	IllegalArgumentException, InvocationTargetException, InstantiationException {
+			IllegalArgumentException, InvocationTargetException, InstantiationException {
 
 		System.out.println("INIT " + beanConfig);
 
@@ -186,14 +193,14 @@ public class Kernel {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private void inject(Object[] data, Dependency dependency, Object toBean) throws IllegalAccessException,
-	IllegalArgumentException, InvocationTargetException, InstantiationException {
+			IllegalArgumentException, InvocationTargetException, InstantiationException {
 
 		if (!dependency.isNullAllowed() && data == null)
 			throw new KernelException("Can't inject <null> to field " + dependency.getField());
 
 		Object valueToSet;
 		if (data == null) {
-			valueToSet = (Object) null;
+			valueToSet = null;
 		} else if (Collection.class.isAssignableFrom(dependency.getField().getType())) {
 			Collection o;
 
@@ -224,7 +231,7 @@ public class Kernel {
 
 			valueToSet = o;
 		}
-		
+
 		Method setter = prepareSetterMethod(dependency.getField());
 		if (setter != null) {
 			setter.invoke(toBean, valueToSet);
@@ -261,7 +268,7 @@ public class Kernel {
 
 	}
 
-	private void injectIfRequired(final BeanConfig beanConfig) {
+	void injectIfRequired(final BeanConfig beanConfig) {
 		try {
 			Collection<Dependency> dps = dependencyManager.getDependenciesTo(beanConfig);
 			for (Dependency dep : dps) {
@@ -304,10 +311,37 @@ public class Kernel {
 			return m;
 		} catch (NoSuchMethodException e) {
 			return null;
-			//throw new KernelException("Class " + f.getDeclaringClass().getName() + " has no setter of field " + f.getName(), e);
+			// throw new KernelException("Class " +
+			// f.getDeclaringClass().getName() + " has no setter of field " +
+			// f.getName(), e);
 		}
 	}
 
+	public BeanConfigBuilder registerBean(Class<?> beanClass) {
+		if (currentlyUsedConfigBuilder != null)
+			throw new KernelException("Registration of bean '" + currentlyUsedConfigBuilder.getBeanName()
+					+ "' is not finished yet!");
+
+		Bean annotation = beanClass.getAnnotation(Bean.class);
+		if (annotation == null || annotation.name() == null || annotation.name().isEmpty())
+			throw new KernelException("Name of bean is not defined.");
+
+		BeanConfigBuilder builder = new BeanConfigBuilder(this, dependencyManager, annotation.name());
+		this.currentlyUsedConfigBuilder = builder;
+		builder.asClass(beanClass);
+		return builder;
+	}
+
+	public TypeBeanBuilder registerBean(String beanName) {
+		if (currentlyUsedConfigBuilder != null)
+			throw new KernelException("Registration of bean '" + currentlyUsedConfigBuilder.getBeanName()
+					+ "' is not finished yet!");
+		BeanConfigBuilder builder = new BeanConfigBuilder(this, dependencyManager, beanName);
+		this.currentlyUsedConfigBuilder = builder;
+		return builder;
+	}
+
+	@Deprecated
 	public void registerBean(String beanName, Object bean) {
 		if (log.isLoggable(Level.FINER))
 			log.finer("[" + getName() + "] Registering bean " + beanName);
@@ -321,6 +355,7 @@ public class Kernel {
 		injectIfRequired(bc);
 	}
 
+	@Deprecated
 	public void registerBeanClass(String beanName, Class<?> beanClass) {
 		if (log.isLoggable(Level.FINER))
 			log.finer("[" + getName() + "] Registering bean " + beanName + " with class " + beanClass);
@@ -333,6 +368,7 @@ public class Kernel {
 		injectIfRequired(bc);
 	}
 
+	@Deprecated
 	public void registerBeanClass(String beanName, Class<?> beanClass, Class<? extends BeanFactory<?>> beanFactoryClass) {
 		if (log.isLoggable(Level.FINER))
 			log.finer("[" + getName() + "] Registering bean " + beanName + " with class " + beanClass);
@@ -389,7 +425,7 @@ public class Kernel {
 		}
 	}
 
-	private void unregisterInt(String beanName) {
+	void unregisterInt(String beanName) {
 		if (dependencyManager.isBeanClassRegistered(beanName)) {
 			// unregistering
 			if (log.isLoggable(Level.FINER))

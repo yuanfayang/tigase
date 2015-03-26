@@ -53,7 +53,7 @@ public class BeanConfig {
 		return clazz;
 	}
 
-	BeanConfig getFactory() {
+	public BeanConfig getFactory() {
 		return factory;
 	}
 
@@ -73,7 +73,7 @@ public class BeanConfig {
 		return result;
 	}
 
-	public void setFactory(final BeanConfig bfc) {
+	void setFactory(final BeanConfig bfc) {
 		this.factory = bfc;
 	}
 

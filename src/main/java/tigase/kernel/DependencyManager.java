@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import tigase.kernel.BeanConfig.State;
+
 public class DependencyManager {
 
 	private static Field[] getAllFields(Class<?> klass) {
@@ -124,10 +126,16 @@ public class DependencyManager {
 		}
 	}
 
+	void register(BeanConfig factoryBeanConfig) {
+		beanConfigs.put(factoryBeanConfig.getBeanName(), factoryBeanConfig);
+		factoryBeanConfig.setState(State.registered);
+
+	}
+
 	public BeanConfig registerBeanClass(final String beanName, final Class<?> beanClass) {
 		BeanConfig c = createBeanConfig(beanName, beanClass);
 
-		beanConfigs.put(beanName, c);
+		register(c);
 
 		return c;
 	}
