@@ -17,27 +17,27 @@ public class EventBusComponentRegistrar extends AbstractComponentRegistrar {
 	@Override
 	public void register(Kernel kernel) {
 		super.register(kernel);
-		kernel.registerBean("localEventBus", EventBusFactory.getInstance());
+		kernel.registerBean("localEventBus").asInstance(EventBusFactory.getInstance()).exec();
 
-		kernel.registerBeanClass("component", EventBusComponent.class);
+		kernel.registerBean("component").asClass(EventBusComponent.class).exec();
 
-		kernel.registerBeanClass("scriptEngineManager", ScriptEngineManager.class);
-		kernel.registerBeanClass("scriptsRegistrar", ListenerScriptRegistrar.class);
-		kernel.registerBeanClass("subscriptionStore", SubscriptionStore.class);
-		kernel.registerBeanClass("affiliationStore", AffiliationStore.class);
+		kernel.registerBean("scriptEngineManager").asClass(ScriptEngineManager.class).exec();
+		kernel.registerBean("scriptsRegistrar").asClass(ListenerScriptRegistrar.class).exec();
+		kernel.registerBean("subscriptionStore").asClass(SubscriptionStore.class).exec();
+		kernel.registerBean("affiliationStore").asClass(AffiliationStore.class).exec();
 
-		kernel.registerBeanClass(SubscribeModule.ID, SubscribeModule.class);
-		kernel.registerBeanClass(UnsubscribeModule.ID, UnsubscribeModule.class);
-		kernel.registerBeanClass(EventReceiverModule.ID, EventReceiverModule.class);
-		kernel.registerBeanClass(EventPublisherModule.ID, EventPublisherModule.class);
+		kernel.registerBean(SubscribeModule.ID).asClass(SubscribeModule.class).exec();
+		kernel.registerBean(UnsubscribeModule.ID).asClass(UnsubscribeModule.class).exec();
+		kernel.registerBean(EventReceiverModule.ID).asClass(EventReceiverModule.class).exec();
+		kernel.registerBean(EventPublisherModule.ID).asClass(EventPublisherModule.class).exec();
 
-		kernel.registerBeanClass(XmppPingModule.ID, XmppPingModule.class);
-		kernel.registerBeanClass(JabberVersionModule.ID, JabberVersionModule.class);
-		kernel.registerBeanClass(AdHocCommandModule.ID, AdHocCommandModule.class);
-		kernel.registerBeanClass(DiscoveryModule.ID, DiscoveryModule.class);
+		kernel.registerBean(XmppPingModule.ID).asClass(XmppPingModule.class).exec();
+		kernel.registerBean(JabberVersionModule.ID).asClass(JabberVersionModule.class).exec();
+		kernel.registerBean(AdHocCommandModule.ID).asClass(AdHocCommandModule.class).exec();
+		kernel.registerBean(DiscoveryModule.ID).asClass(DiscoveryModule.class).exec();
 
-		kernel.registerBeanClass(RemoveListenerScriptCommand.ID, RemoveListenerScriptCommand.class);
-		kernel.registerBeanClass(AddListenerScriptCommand.ID, AddListenerScriptCommand.class);
+		kernel.registerBean(RemoveListenerScriptCommand.ID).asClass(RemoveListenerScriptCommand.class).exec();
+		kernel.registerBean(AddListenerScriptCommand.ID).asClass(AddListenerScriptCommand.class).exec();
 	}
 
 }

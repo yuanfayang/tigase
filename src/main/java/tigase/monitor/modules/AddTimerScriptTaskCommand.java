@@ -46,7 +46,7 @@ public class AddTimerScriptTaskCommand implements AdHocCommand {
 					String scriptContent = form.getAsString("scriptContent");
 					Long delay = form.getAsLong("delay");
 
-					kernel.registerBeanClass(scriptName, ScriptTimerTask.class);
+					kernel.registerBean(scriptName).asClass(ScriptTimerTask.class).exec();
 					ScriptTimerTask scriptTask = kernel.getInstance(scriptName);
 					scriptTask.run(scriptContent, scriptExtension, delay);
 				}

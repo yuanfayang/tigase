@@ -130,4 +130,93 @@ public class KernelTest {
 		assertEquals(Bean6.class, krnl.getInstance("beanX").getClass());
 		assertEquals(Bean6.class, krnl.getInstance(Bean7.class).getObj().getClass());
 	}
+
+	@Test
+	public void test3() throws IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+		Kernel krnl = new Kernel();
+
+		krnl.registerBean(Bean1.class).exec();
+		krnl.registerBean("bean4").asClass(Bean4.class).exec();
+		// krnl.registerBean("bean41").asClass(Bean4.class).exec();
+
+		Bean1 b1 = krnl.getInstance("bean1");
+
+		assertNotNull(b1);
+
+		assertNotNull(b1.getSs());
+		assertEquals(1, b1.getSs().length);
+
+		assertEquals(1, b1.getXxx().size());
+	}
+
+	@Test
+	public void test4() throws IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+		Kernel krnl = new Kernel();
+
+		krnl.registerBean(Bean1.class).exec();
+
+		Bean1 b1 = krnl.getInstance("bean1");
+
+		assertNotNull(b1);
+
+		assertNull(b1.getSs());
+
+		assertEquals(0, b1.getXxx().size());
+	}
+
+	@Test
+	public void testCascadeKernels() throws Exception {
+		Kernel krnlParent = new Kernel("Parent");
+		krnlParent.registerBean("bean1").asClass(Bean1.class).exec();
+		krnlParent.registerBean("bean40").asClass(Bean4.class).exportable().exec();
+		krnlParent.registerBean("bean41").asClass(Bean4.class).exec();
+		krnlParent.registerBean("bean42").asClass(Bean4.class).exportable().exec();
+		final Bean5 b5parent = new Bean5();
+		final Bean5 b51parent = new Bean5();
+		krnlParent.registerBean("bean5").asInstance(b5parent).exportable().exec();
+		krnlParent.registerBean("bean51").asInstance(b51parent).exportable().exec();
+
+		Kernel krnlChild1 = new Kernel("Child01");
+		krnlChild1.registerBean("bean40").asClass(Bean4.class).exportable().exec();
+
+		final Bean5 b5ch1 = new Bean5();
+		krnlChild1.registerBean("bean5").asInstance(b5ch1).exportable().exec();
+
+		Kernel krnlChild2 = new Kernel("Child02");
+		krnlChild2.registerBean("bean1").asClass(Bean1.class).exec();
+		krnlChild2.registerBean("bean43").asClass(Bean4.class).exec();
+
+		krnlParent.registerBean(krnlChild1.getName()).asInstance(krnlChild1).exec();
+		krnlParent.registerBean(krnlChild2.getName()).asInstance(krnlChild2).exec();
+
+		Bean1 bean1 = krnlChild2.getInstance(Bean1.class);
+
+		assertEquals(3, bean1.getXxx().size());
+		assertTrue(bean1.getXxx().contains(krnlParent.getInstance("bean40")));
+		assertTrue(bean1.getXxx().contains(krnlParent.getInstance("bean42")));
+
+		assertEquals(3, bean1.getSs().length);
+
+		DependencyGrapher dg = new DependencyGrapher(krnlParent);
+		System.out.println(dg.getDependencyGraph());
+
+		assertEquals(b5ch1, krnlChild1.getInstance("bean5"));
+		assertEquals(b51parent, krnlChild1.getInstance("bean51"));
+
+		assertNotNull(krnlChild1.getInstance(Bean1.class));
+
+		try {
+			krnlChild1.getInstance(Bean3.class);
+			Assert.fail();
+		} catch (KernelException e) {
+			assertEquals("Can't find bean implementing class tigase.kernel.Bean3", e.getMessage());
+		}
+
+		try {
+			krnlChild1.getInstance("zzz");
+			Assert.fail();
+		} catch (KernelException e) {
+			assertEquals("Unknown bean 'zzz'.", e.getMessage());
+		}
+	}
 }

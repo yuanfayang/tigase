@@ -22,25 +22,25 @@ public class MonitorComponentRegistrar extends AbstractComponentRegistrar {
 	@Override
 	public void register(Kernel kernel) {
 		super.register(kernel);
-		kernel.registerBeanClass("component", MonitorComponent.class);
+		kernel.registerBean("component").asClass(MonitorComponent.class).exec();
 
-		kernel.registerBeanClass(XmppPingModule.ID, XmppPingModule.class);
-		kernel.registerBeanClass(JabberVersionModule.ID, JabberVersionModule.class);
-		kernel.registerBeanClass(AdHocCommandModule.ID, AdHocCommandMonitorModule.class);
-		kernel.registerBeanClass(DiscoveryModule.ID, DiscoveryMonitorModule.class);
+		kernel.registerBean(XmppPingModule.ID).asClass(XmppPingModule.class).exec();
+		kernel.registerBean(JabberVersionModule.ID).asClass(JabberVersionModule.class).exec();
+		kernel.registerBean(AdHocCommandModule.ID).asClass(AdHocCommandMonitorModule.class).exec();
+		kernel.registerBean(DiscoveryModule.ID).asClass(DiscoveryMonitorModule.class).exec();
 
-		kernel.registerBeanClass(TasksScriptRegistrar.ID, TasksScriptRegistrar.class);
-		kernel.registerBeanClass("timerTaskService", MonitorTimerTaskService.class);
-		kernel.registerBeanClass("scriptEngineManager", ScriptEngineManager.class);
+		kernel.registerBean(TasksScriptRegistrar.ID).asClass(TasksScriptRegistrar.class).exec();
+		kernel.registerBean("timerTaskService").asClass(MonitorTimerTaskService.class).exec();
+		kernel.registerBean("scriptEngineManager").asClass(ScriptEngineManager.class).exec();
 		// XXX kernel.registerBean("bindings",
 		// scriptEngineManager.getBindings());
-		kernel.registerBean("runtime", MonitorRuntime.getMonitorRuntime());
+		kernel.registerBean("runtime").asInstance(MonitorRuntime.getMonitorRuntime()).exec();
 
-		kernel.registerBeanClass(AddScriptTaskCommand.ID, AddScriptTaskCommand.class);
-		kernel.registerBeanClass(AddTimerScriptTaskCommand.ID, AddTimerScriptTaskCommand.class);
-		kernel.registerBeanClass(DeleteScriptTaskCommand.ID, DeleteScriptTaskCommand.class);
-		kernel.registerBeanClass(InfoTaskCommand.NODE, InfoTaskCommand.class);
-		kernel.registerBeanClass(ConfigureTaskCommand.NODE, ConfigureTaskCommand.class);
+		kernel.registerBean(AddScriptTaskCommand.ID).asClass(AddScriptTaskCommand.class).exec();
+		kernel.registerBean(AddTimerScriptTaskCommand.ID).asClass(AddTimerScriptTaskCommand.class).exec();
+		kernel.registerBean(DeleteScriptTaskCommand.ID).asClass(DeleteScriptTaskCommand.class).exec();
+		kernel.registerBean(InfoTaskCommand.NODE).asClass(InfoTaskCommand.class).exec();
+		kernel.registerBean(ConfigureTaskCommand.NODE).asClass(ConfigureTaskCommand.class).exec();
 	}
 
 }

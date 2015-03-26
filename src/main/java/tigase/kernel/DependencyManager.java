@@ -26,9 +26,11 @@ public class DependencyManager {
 
 	private final Map<String, BeanConfig> beanConfigs = new HashMap<String, BeanConfig>();
 
-	protected BeanConfig createBeanConfig(final String beanName, final Class<?> beanClass) {
-		BeanConfig result = new BeanConfig(beanName, beanClass);
+	private DependencyManager parent;
 
+	protected BeanConfig createBeanConfig(final Kernel kernel, final String beanName, final Class<?> beanClass) {
+		BeanConfig result = new BeanConfig(beanName, beanClass);
+		result.setKernel(kernel);
 		prepareDependencies(result);
 
 		return result;
@@ -46,13 +48,25 @@ public class DependencyManager {
 	}
 
 	public BeanConfig[] getBeanConfig(Dependency dependency) {
+		ArrayList<BeanConfig> bcs = new ArrayList<BeanConfig>();
+		if (this.parent != null) {
+			BeanConfig[] pds = this.parent.getBeanConfig(dependency);
+			for (BeanConfig beanConfig : pds) {
+				if (beanConfig != null && beanConfig.isExportable())
+					bcs.add(beanConfig);
+			}
+		}
 		if (dependency.getBeanName() != null) {
-			return new BeanConfig[] { beanConfigs.get(dependency.getBeanName()) };
+			BeanConfig b = beanConfigs.get(dependency.getBeanName());
+			if (b != null)
+				bcs.add(b);
+			if (bcs.isEmpty())
+				bcs.add(null);
 		} else if (dependency.getType() != null) {
-			List<BeanConfig> bcs = getBeanConfigs(dependency.getType());
-			return bcs.toArray(new BeanConfig[] {});
+			bcs.addAll(getBeanConfigs(dependency.getType()));
 		} else
 			throw new RuntimeException("Unsupported dependecy type.");
+		return bcs.toArray(new BeanConfig[] {});
 	}
 
 	public BeanConfig getBeanConfig(String beanName) {
@@ -99,6 +113,10 @@ public class DependencyManager {
 		return result;
 	}
 
+	DependencyManager getParent() {
+		return parent;
+	}
+
 	public boolean isBeanClassRegistered(String beanName) {
 		return beanConfigs.containsKey(beanName);
 	}
@@ -132,12 +150,8 @@ public class DependencyManager {
 
 	}
 
-	public BeanConfig registerBeanClass(final String beanName, final Class<?> beanClass) {
-		BeanConfig c = createBeanConfig(beanName, beanClass);
-
-		register(c);
-
-		return c;
+	void setParent(DependencyManager parent) {
+		this.parent = parent;
 	}
 
 	public BeanConfig unregister(String beanName) {

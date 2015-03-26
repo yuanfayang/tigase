@@ -16,9 +16,13 @@ public class BeanConfig {
 
 	private final Class<?> clazz;
 
+	private boolean exportable;
+
 	private BeanConfig factory;
 
 	private final Map<Field, Dependency> fieldDependencies = new HashMap<Field, Dependency>();
+
+	private Kernel kernel;
 
 	private State state;
 
@@ -61,6 +65,10 @@ public class BeanConfig {
 		return fieldDependencies;
 	}
 
+	public Kernel getKernel() {
+		return kernel;
+	}
+
 	public State getState() {
 		return state;
 	}
@@ -73,8 +81,20 @@ public class BeanConfig {
 		return result;
 	}
 
+	public boolean isExportable() {
+		return exportable;
+	}
+
+	void setExportable(boolean value) {
+		this.exportable = value;
+	}
+
 	void setFactory(final BeanConfig bfc) {
 		this.factory = bfc;
+	}
+
+	void setKernel(Kernel kernel) {
+		this.kernel = kernel;
 	}
 
 	void setState(State state) {

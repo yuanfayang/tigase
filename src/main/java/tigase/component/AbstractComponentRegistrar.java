@@ -11,13 +11,13 @@ public abstract class AbstractComponentRegistrar implements Registrar {
 
 	@Override
 	public void register(Kernel kernel) {
-		kernel.registerBean("kernel", kernel);
-		kernel.registerBeanClass("adHocCommandManager", AdHocCommandManager.class);
-		kernel.registerBeanClass("eventBus", ComponentEventBus.class);
-		kernel.registerBeanClass("scriptCommandProcessor", ComponenScriptCommandProcessor.class);
-		kernel.registerBeanClass("writer", DefaultPacketWriter.class);
-		kernel.registerBeanClass("stanzaProcessor", StanzaProcessor.class);
-		kernel.registerBeanClass("responseManager", ResponseManager.class);
+		kernel.registerBean("kernel").asInstance(kernel).exec();
+		kernel.registerBean("adHocCommandManager").asClass(AdHocCommandManager.class).exec();
+		kernel.registerBean("eventBus").asClass(ComponentEventBus.class).exec();
+		kernel.registerBean("scriptCommandProcessor").asClass(ComponenScriptCommandProcessor.class).exec();
+		kernel.registerBean("writer").asClass(DefaultPacketWriter.class).exec();
+		kernel.registerBean("stanzaProcessor").asClass(StanzaProcessor.class).exec();
+		kernel.registerBean("responseManager").asClass(ResponseManager.class).exec();
 	}
 
 }

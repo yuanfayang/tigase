@@ -92,14 +92,14 @@ public class TasksScriptRegistrar implements Initializable {
 	}
 
 	private void runScriptTask(String scriptName, String scriptExtension, String scriptContent) throws ScriptException {
-		kernel.registerBeanClass(scriptName, ScriptTask.class);
+		kernel.registerBean(scriptName).asClass(ScriptTask.class).exec();
 		ScriptTask scriptTask = kernel.getInstance(scriptName);
 		scriptTask.run(scriptContent, scriptExtension);
 	}
 
 	private void runScriptTask(String scriptName, String scriptExtension, String scriptContent, Long delay)
 			throws ScriptException {
-		kernel.registerBeanClass(scriptName, ScriptTimerTask.class);
+		kernel.registerBean(scriptName).asClass(ScriptTimerTask.class).exec();
 		ScriptTimerTask scriptTask = kernel.getInstance(scriptName);
 		scriptTask.run(scriptContent, scriptExtension, delay);
 	}

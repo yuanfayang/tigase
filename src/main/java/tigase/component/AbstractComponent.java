@@ -199,7 +199,7 @@ public abstract class AbstractComponent extends AbstractMessageReceiver implemen
 		for (Entry<String, Object> e : props.entrySet()) {
 			if (e.getKey().startsWith("modules/")) {
 				final String id = e.getKey().substring(8);
-				kernel.registerBeanClass(id, (Class<?>) e.getValue());
+				kernel.registerBean(id).asClass((Class<?>) e.getValue()).exec();
 			}
 		}
 	}
