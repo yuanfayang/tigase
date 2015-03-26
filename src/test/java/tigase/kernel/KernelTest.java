@@ -6,6 +6,8 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -17,6 +19,23 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class KernelTest {
+
+	public static class TestBeanConfigurationProvider implements BeanConfigurationProvider {
+
+		@Override
+		public Map<String, Object> getConfiguration(BeanConfig beanConfig) {
+			if (beanConfig.getBeanName().equals("bean5")) {
+				HashMap<String, Object> result = new HashMap<String, Object>();
+				result.put("value", Long.valueOf(9987));
+				return result;
+			} else if (beanConfig.getBeanName().equals("bean6")) {
+				HashMap<String, Object> result = new HashMap<String, Object>();
+				result.put("testValue", "yytestxx");
+				return result;
+			} else
+				return null;
+		}
+	}
 
 	@BeforeClass
 	public static void setUpBeforeClass() throws Exception {
@@ -162,6 +181,21 @@ public class KernelTest {
 		assertNull(b1.getSs());
 
 		assertEquals(0, b1.getXxx().size());
+	}
+
+	@Test
+	public void testBeanConfiguration() throws IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+		Kernel krnl = new Kernel();
+		krnl.registerBean("bean5").asClass(Bean5.class).exec();
+		krnl.registerBean("beanConfigurationProvider").asClass(TestBeanConfigurationProvider.class).exec();
+		krnl.registerBean("bean6").asClass(Bean6.class).exec();
+
+		Bean5 b5 = krnl.getInstance(Bean5.class);
+		Bean6 b6 = krnl.getInstance(Bean6.class);
+
+		assertEquals("yytestxx", b6.getTestValue());
+		assertEquals(9987l, b5.getValue().longValue());
+
 	}
 
 	@Test

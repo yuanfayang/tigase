@@ -188,6 +188,22 @@ public class Kernel {
 			injectDependencies(bean, dep, createdBeansConfig, deep);
 		}
 
+		BeanConfigurationProvider beanConfigurator;
+		try {
+			if (!BeanConfigurationProvider.class.isAssignableFrom(beanConfig.getClazz()))
+				beanConfigurator = getInstance(BeanConfigurationProvider.class);
+			else
+				beanConfigurator = null;
+		} catch (KernelException e) {
+			beanConfigurator = null;
+		}
+
+		if (beanConfigurator != null) {
+			Map<String, Object> ccc = beanConfigurator.getConfiguration(beanConfig);
+			if (ccc != null)
+				injectConfiguration(ccc, beanConfig, bean);
+		}
+
 		if (deep == 0) {
 			for (BeanConfig bc : createdBeansConfig) {
 				Object bi = bc.getKernel().beanInstances.get(bc);
@@ -246,6 +262,25 @@ public class Kernel {
 		} else {
 			dependency.getField().setAccessible(true);
 			dependency.getField().set(toBean, valueToSet);
+		}
+	}
+
+	private void injectConfiguration(Map<String, Object> ccc, BeanConfig beanConfig, Object bean)
+			throws IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+		final Field[] fields = DependencyManager.getAllFields(beanConfig.getClazz());
+		for (Field field : fields) {
+			if (!ccc.containsKey(field.getName()))
+				continue;
+
+			Object valueToSet = ccc.get(field.getName());
+
+			Method setter = prepareSetterMethod(field);
+			if (setter != null) {
+				setter.invoke(bean, valueToSet);
+			} else {
+				field.setAccessible(true);
+				field.set(bean, valueToSet);
+			}
 		}
 	}
 

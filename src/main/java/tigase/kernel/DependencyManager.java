@@ -15,7 +15,7 @@ import tigase.kernel.BeanConfig.State;
 
 public class DependencyManager {
 
-	private static Field[] getAllFields(Class<?> klass) {
+	static Field[] getAllFields(Class<?> klass) {
 		List<Field> fields = new ArrayList<Field>();
 		fields.addAll(Arrays.asList(klass.getDeclaredFields()));
 		if (klass.getSuperclass() != null) {
