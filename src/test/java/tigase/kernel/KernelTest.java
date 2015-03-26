@@ -20,7 +20,7 @@ import org.junit.Test;
 
 public class KernelTest {
 
-	public static class TestBeanConfigurationProvider implements BeanConfigurationProvider {
+	public static class TestBeanConfigurationProvider extends AbstractBeanConfigurator {
 
 		@Override
 		public Map<String, Object> getConfiguration(BeanConfig beanConfig) {
@@ -187,7 +187,7 @@ public class KernelTest {
 	public void testBeanConfiguration() throws IllegalAccessException, IllegalArgumentException, InvocationTargetException {
 		Kernel krnl = new Kernel();
 		krnl.registerBean("bean5").asClass(Bean5.class).exec();
-		krnl.registerBean("beanConfigurationProvider").asClass(TestBeanConfigurationProvider.class).exec();
+		krnl.registerBean(BeanConfigurator.DEFAULT_CONFIGURATOR_NAME).asClass(TestBeanConfigurationProvider.class).exec();
 		krnl.registerBean("bean6").asClass(Bean6.class).exec();
 
 		Bean5 b5 = krnl.getInstance(Bean5.class);

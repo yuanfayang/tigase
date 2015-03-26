@@ -37,6 +37,30 @@ public class Kernel {
 		return r;
 	}
 
+	static Method prepareSetterMethod(Field f) {
+		String t = prepareAccessorMainPartName(f.getName());
+		String sm;
+		@SuppressWarnings("unused")
+		String gm;
+		if (f.getType().isPrimitive() && f.getType().equals(boolean.class)) {
+			sm = "set" + t;
+			gm = "is" + t;
+		} else {
+			sm = "set" + t;
+			gm = "get" + t;
+		}
+
+		try {
+			Method m = f.getDeclaringClass().getMethod(sm, f.getType());
+			return m;
+		} catch (NoSuchMethodException e) {
+			return null;
+			// throw new KernelException("Class " +
+			// f.getDeclaringClass().getName() + " has no setter of field " +
+			// f.getName(), e);
+		}
+	}
+
 	private final Map<BeanConfig, Object> beanInstances = new HashMap<BeanConfig, Object>();
 
 	BeanConfigBuilder currentlyUsedConfigBuilder;
@@ -166,7 +190,7 @@ public class Kernel {
 	}
 
 	private void initBean(BeanConfig beanConfig, Set<BeanConfig> createdBeansConfig, int deep) throws IllegalAccessException,
-	IllegalArgumentException, InvocationTargetException, InstantiationException {
+			IllegalArgumentException, InvocationTargetException, InstantiationException {
 
 		if (beanConfig.getState() == State.initialized)
 			return;
@@ -188,10 +212,10 @@ public class Kernel {
 			injectDependencies(bean, dep, createdBeansConfig, deep);
 		}
 
-		BeanConfigurationProvider beanConfigurator;
+		BeanConfigurator beanConfigurator;
 		try {
-			if (!BeanConfigurationProvider.class.isAssignableFrom(beanConfig.getClazz()))
-				beanConfigurator = getInstance(BeanConfigurationProvider.class);
+			if (!beanConfig.getBeanName().equals(BeanConfigurator.DEFAULT_CONFIGURATOR_NAME))
+				beanConfigurator = getInstance(BeanConfigurator.DEFAULT_CONFIGURATOR_NAME);
 			else
 				beanConfigurator = null;
 		} catch (KernelException e) {
@@ -199,9 +223,7 @@ public class Kernel {
 		}
 
 		if (beanConfigurator != null) {
-			Map<String, Object> ccc = beanConfigurator.getConfiguration(beanConfig);
-			if (ccc != null)
-				injectConfiguration(ccc, beanConfig, bean);
+			beanConfigurator.configure(beanConfig, bean);
 		}
 
 		if (deep == 0) {
@@ -217,7 +239,7 @@ public class Kernel {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private void inject(Object[] data, Dependency dependency, Object toBean) throws IllegalAccessException,
-	IllegalArgumentException, InvocationTargetException, InstantiationException {
+			IllegalArgumentException, InvocationTargetException, InstantiationException {
 
 		if (!dependency.isNullAllowed() && data == null)
 			throw new KernelException("Can't inject <null> to field " + dependency.getField());
@@ -336,30 +358,6 @@ public class Kernel {
 
 	public boolean isBeanClassRegistered(String beanName) {
 		return dependencyManager.isBeanClassRegistered(beanName);
-	}
-
-	private Method prepareSetterMethod(Field f) {
-		String t = prepareAccessorMainPartName(f.getName());
-		String sm;
-		@SuppressWarnings("unused")
-		String gm;
-		if (f.getType().isPrimitive() && f.getType().equals(boolean.class)) {
-			sm = "set" + t;
-			gm = "is" + t;
-		} else {
-			sm = "set" + t;
-			gm = "get" + t;
-		}
-
-		try {
-			Method m = f.getDeclaringClass().getMethod(sm, f.getType());
-			return m;
-		} catch (NoSuchMethodException e) {
-			return null;
-			// throw new KernelException("Class " +
-			// f.getDeclaringClass().getName() + " has no setter of field " +
-			// f.getName(), e);
-		}
 	}
 
 	public BeanConfigBuilder registerBean(Class<?> beanClass) {
