@@ -13,7 +13,7 @@ import tigase.cluster.api.ClusteredComponentIfc;
 import tigase.component.AbstractComponent;
 import tigase.component.modules.Module;
 import tigase.conf.ConfigurationException;
-import tigase.kernel.Inject;
+import tigase.kernel.beans.Inject;
 import tigase.stats.StatisticsList;
 
 public class EventBusComponent extends AbstractComponent implements ClusteredComponentIfc {

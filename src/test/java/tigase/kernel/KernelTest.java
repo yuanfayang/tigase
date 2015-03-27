@@ -18,6 +18,12 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import tigase.kernel.beans.config.AbstractBeanConfigurator;
+import tigase.kernel.beans.config.BeanConfigurator;
+import tigase.kernel.core.BeanConfig;
+import tigase.kernel.core.DependencyGrapher;
+import tigase.kernel.core.Kernel;
+
 public class KernelTest {
 
 	public static class TestBeanConfigurationProvider extends AbstractBeanConfigurator {
@@ -196,6 +202,13 @@ public class KernelTest {
 		assertEquals("yytestxx", b6.getTestValue());
 		assertEquals(9987l, b5.getValue().longValue());
 
+		((TestBeanConfigurationProvider) krnl.getInstance(BeanConfigurator.DEFAULT_CONFIGURATOR_NAME)).restoreDefaults("bean5");
+		assertEquals("yytestxx", b6.getTestValue());
+		assertEquals(15l, b5.getValue().longValue());
+
+		((TestBeanConfigurationProvider) krnl.getInstance(BeanConfigurator.DEFAULT_CONFIGURATOR_NAME)).restoreDefaults("bean6");
+		assertNull(b6.getTestValue());
+		assertEquals(15l, b5.getValue().longValue());
 	}
 
 	@Test

@@ -12,7 +12,7 @@ import tigase.component.adhoc.AdHocResponse;
 import tigase.component.adhoc.AdhHocRequest;
 import tigase.form.Field;
 import tigase.form.Form;
-import tigase.kernel.Inject;
+import tigase.kernel.beans.Inject;
 import tigase.monitor.TasksScriptRegistrar;
 import tigase.xml.Element;
 import tigase.xmpp.Authorization;

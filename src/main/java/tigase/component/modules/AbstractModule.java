@@ -22,7 +22,7 @@ import java.util.logging.Logger;
 import tigase.component.PacketWriter;
 import tigase.component.responses.AsyncCallback;
 import tigase.disteventbus.EventBus;
-import tigase.kernel.Inject;
+import tigase.kernel.beans.Inject;
 import tigase.server.Packet;
 import tigase.xml.Element;
 

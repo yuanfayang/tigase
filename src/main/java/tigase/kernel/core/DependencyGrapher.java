@@ -1,4 +1,4 @@
-package tigase.kernel;
+package tigase.kernel.core;
 
 import java.util.HashSet;
 
@@ -70,7 +70,8 @@ public class DependencyGrapher {
 			Kernel ki = kernel.getInstance(kc.getBeanName());
 			structureSB.append("subgraph ").append("cluster_").append(ki.hashCode()).append(" {\n");
 			structureSB.append("label=").append("\"").append(ki.getName()).append("\"\n");
-			drawContext(structureSB, connections, ki);
+			if (ki != kernel)
+				drawContext(structureSB, connections, ki);
 			structureSB.append("}\n");
 		}
 

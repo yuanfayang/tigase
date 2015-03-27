@@ -8,9 +8,9 @@ import java.util.Properties;
 
 import javax.script.ScriptException;
 
-import tigase.kernel.Initializable;
-import tigase.kernel.Inject;
-import tigase.kernel.Kernel;
+import tigase.kernel.beans.Initializable;
+import tigase.kernel.beans.Inject;
+import tigase.kernel.core.Kernel;
 import tigase.monitor.tasks.ScriptTask;
 import tigase.monitor.tasks.ScriptTimerTask;
 import tigase.util.Algorithms;

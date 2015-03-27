@@ -4,7 +4,7 @@ import javax.script.ScriptException;
 
 import tigase.form.Field;
 import tigase.form.Form;
-import tigase.kernel.Inject;
+import tigase.kernel.beans.Inject;
 import tigase.monitor.ConfigurableTask;
 import tigase.monitor.TimerTaskService;
 import tigase.util.TimerTask;

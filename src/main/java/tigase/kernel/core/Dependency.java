@@ -1,4 +1,4 @@
-package tigase.kernel;
+package tigase.kernel.core;
 
 import java.lang.reflect.Field;
 

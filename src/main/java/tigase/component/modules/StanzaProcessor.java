@@ -8,7 +8,7 @@ import tigase.component.PacketWriter;
 import tigase.component.exceptions.ComponentException;
 import tigase.component.responses.ResponseManager;
 import tigase.criteria.Criteria;
-import tigase.kernel.Inject;
+import tigase.kernel.beans.Inject;
 import tigase.server.Packet;
 import tigase.util.TigaseStringprepException;
 import tigase.xml.Element;

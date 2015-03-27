@@ -2,6 +2,9 @@ package tigase.kernel;
 
 import java.util.Set;
 
+import tigase.kernel.beans.Bean;
+import tigase.kernel.beans.Inject;
+
 @Bean(name = "bean1")
 public class Bean1 {
 

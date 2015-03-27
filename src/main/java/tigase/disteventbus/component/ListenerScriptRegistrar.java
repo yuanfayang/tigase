@@ -11,9 +11,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 
-import tigase.kernel.Initializable;
-import tigase.kernel.Inject;
-import tigase.kernel.Kernel;
+import tigase.kernel.beans.Initializable;
+import tigase.kernel.beans.Inject;
+import tigase.kernel.core.Kernel;
 import tigase.util.Algorithms;
 import tigase.util.Base64;
 

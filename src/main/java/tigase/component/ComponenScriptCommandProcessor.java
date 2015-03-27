@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Queue;
 
 import tigase.component.modules.impl.AdHocCommandModule.ScriptCommandProcessor;
-import tigase.kernel.Inject;
+import tigase.kernel.beans.Inject;
 import tigase.server.Packet;
 import tigase.xml.Element;
 import tigase.xmpp.JID;

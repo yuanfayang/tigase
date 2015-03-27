@@ -1,5 +1,8 @@
 package tigase.kernel;
 
+import tigase.kernel.beans.BeanFactory;
+import tigase.kernel.beans.Inject;
+
 public class Bean5Factory implements BeanFactory<Bean5> {
 
 	@Inject

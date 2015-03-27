@@ -3,7 +3,7 @@ package tigase.component;
 import tigase.disteventbus.EventBus;
 import tigase.disteventbus.EventBusFactory;
 import tigase.disteventbus.EventHandler;
-import tigase.kernel.Inject;
+import tigase.kernel.beans.Inject;
 import tigase.xml.Element;
 
 public class ComponentEventBus implements EventBus {

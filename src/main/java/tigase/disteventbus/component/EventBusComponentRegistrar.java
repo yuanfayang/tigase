@@ -10,7 +10,7 @@ import tigase.component.modules.impl.XmppPingModule;
 import tigase.disteventbus.EventBusFactory;
 import tigase.disteventbus.component.stores.AffiliationStore;
 import tigase.disteventbus.component.stores.SubscriptionStore;
-import tigase.kernel.Kernel;
+import tigase.kernel.core.Kernel;
 
 public class EventBusComponentRegistrar extends AbstractComponentRegistrar {
 

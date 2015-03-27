@@ -1,8 +1,12 @@
 package tigase.kernel;
 
+import tigase.kernel.beans.UnregisterAware;
+import tigase.kernel.beans.config.ConfigField;
+
 public class Bean5 implements UnregisterAware {
 
-	private Long value;
+	@ConfigField(desc = "One field with value")
+	private Long value = 15l;
 
 	@Override
 	public void beforeUnregister() {

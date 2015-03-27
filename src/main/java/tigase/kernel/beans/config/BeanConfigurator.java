@@ -1,4 +1,6 @@
-package tigase.kernel;
+package tigase.kernel.beans.config;
+
+import tigase.kernel.core.BeanConfig;
 
 public interface BeanConfigurator {
 

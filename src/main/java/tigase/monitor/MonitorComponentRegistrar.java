@@ -7,7 +7,7 @@ import tigase.component.modules.impl.AdHocCommandModule;
 import tigase.component.modules.impl.DiscoveryModule;
 import tigase.component.modules.impl.JabberVersionModule;
 import tigase.component.modules.impl.XmppPingModule;
-import tigase.kernel.Kernel;
+import tigase.kernel.core.Kernel;
 import tigase.monitor.modules.AdHocCommandMonitorModule;
 import tigase.monitor.modules.AddScriptTaskCommand;
 import tigase.monitor.modules.AddTimerScriptTaskCommand;

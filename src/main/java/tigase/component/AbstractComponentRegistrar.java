@@ -4,8 +4,8 @@ import tigase.component.AbstractComponent.DefaultPacketWriter;
 import tigase.component.adhoc.AdHocCommandManager;
 import tigase.component.modules.StanzaProcessor;
 import tigase.component.responses.ResponseManager;
-import tigase.kernel.Kernel;
 import tigase.kernel.Registrar;
+import tigase.kernel.core.Kernel;
 
 public abstract class AbstractComponentRegistrar implements Registrar {
 

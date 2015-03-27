@@ -1,4 +1,6 @@
-package tigase.kernel;
+package tigase.kernel.beans;
+
+import tigase.kernel.KernelException;
 
 public interface BeanFactory<T> {
 

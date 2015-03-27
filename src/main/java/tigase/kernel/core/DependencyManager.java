@@ -1,4 +1,4 @@
-package tigase.kernel;
+package tigase.kernel.core;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -11,11 +11,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import tigase.kernel.BeanConfig.State;
+import tigase.kernel.beans.Inject;
+import tigase.kernel.core.BeanConfig.State;
 
 public class DependencyManager {
 
-	static Field[] getAllFields(Class<?> klass) {
+	public static Field[] getAllFields(Class<?> klass) {
 		List<Field> fields = new ArrayList<Field>();
 		fields.addAll(Arrays.asList(klass.getDeclaredFields()));
 		if (klass.getSuperclass() != null) {
@@ -49,7 +50,7 @@ public class DependencyManager {
 
 	public BeanConfig[] getBeanConfig(Dependency dependency) {
 		ArrayList<BeanConfig> bcs = new ArrayList<BeanConfig>();
-		if (this.parent != null) {
+		if (this.parent != null && this.parent != this) {
 			BeanConfig[] pds = this.parent.getBeanConfig(dependency);
 			for (BeanConfig beanConfig : pds) {
 				if (beanConfig != null && beanConfig.isExportable())

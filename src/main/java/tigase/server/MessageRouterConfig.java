@@ -26,9 +26,9 @@ package tigase.server;
 
 //~--- non-JDK imports --------------------------------------------------------
 
-import tigase.kernel.DependencyGrapher;
-import tigase.kernel.Kernel;
 import tigase.kernel.Registrar;
+import tigase.kernel.core.DependencyGrapher;
+import tigase.kernel.core.Kernel;
 import tigase.osgi.ModulesManagerImpl;
 import tigase.util.DNSResolver;
 import static tigase.conf.Configurable.*;

@@ -1,9 +1,7 @@
-package tigase.kernel;
+package tigase.kernel.core;
 
 import java.lang.reflect.Array;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -16,50 +14,16 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import tigase.kernel.BeanConfig.State;
+import tigase.kernel.BeanUtils;
+import tigase.kernel.KernelException;
+import tigase.kernel.beans.Bean;
+import tigase.kernel.beans.BeanFactory;
+import tigase.kernel.beans.Initializable;
+import tigase.kernel.beans.UnregisterAware;
+import tigase.kernel.beans.config.BeanConfigurator;
+import tigase.kernel.core.BeanConfig.State;
 
 public class Kernel {
-
-	static String prepareAccessorMainPartName(final String fieldName) {
-		if (fieldName.length() == 1) {
-			return fieldName.toUpperCase();
-		}
-
-		String r;
-		if (Character.isUpperCase(fieldName.charAt(1))) {
-			r = fieldName.substring(0, 1);
-		} else {
-			r = fieldName.substring(0, 1).toUpperCase();
-		}
-
-		r += fieldName.substring(1);
-
-		return r;
-	}
-
-	static Method prepareSetterMethod(Field f) {
-		String t = prepareAccessorMainPartName(f.getName());
-		String sm;
-		@SuppressWarnings("unused")
-		String gm;
-		if (f.getType().isPrimitive() && f.getType().equals(boolean.class)) {
-			sm = "set" + t;
-			gm = "is" + t;
-		} else {
-			sm = "set" + t;
-			gm = "get" + t;
-		}
-
-		try {
-			Method m = f.getDeclaringClass().getMethod(sm, f.getType());
-			return m;
-		} catch (NoSuchMethodException e) {
-			return null;
-			// throw new KernelException("Class " +
-			// f.getDeclaringClass().getName() + " has no setter of field " +
-			// f.getName(), e);
-		}
-	}
 
 	private final Map<BeanConfig, Object> beanInstances = new HashMap<BeanConfig, Object>();
 
@@ -74,11 +38,16 @@ public class Kernel {
 	private Kernel parent;
 
 	public Kernel() {
-		this.name = "<unknown>";
+		this("<unknown>");
 	}
 
 	public Kernel(String name) {
 		this.name = name;
+
+		BeanConfig bc = dependencyManager.createBeanConfig(this, "kernel", Kernel.class);
+		dependencyManager.register(bc);
+		registerBean("kernel").asInstance(this).exec();
+		this.beanInstances.put(bc, this);
 	}
 
 	private Object createNewInstance(BeanConfig beanConfig) {
@@ -102,7 +71,7 @@ public class Kernel {
 		return beanInstances;
 	}
 
-	DependencyManager getDependencyManager() {
+	public DependencyManager getDependencyManager() {
 		return dependencyManager;
 	}
 
@@ -112,7 +81,7 @@ public class Kernel {
 
 		if (bcs.size() > 1)
 			throw new KernelException("Too many beans implemented class " + beanClass);
-		else if (bcs.isEmpty() && this.parent != null) {
+		else if (bcs.isEmpty() && this.parent != null && this.parent != this) {
 			return this.parent.getInstance(beanClass);
 		}
 
@@ -190,7 +159,7 @@ public class Kernel {
 	}
 
 	private void initBean(BeanConfig beanConfig, Set<BeanConfig> createdBeansConfig, int deep) throws IllegalAccessException,
-			IllegalArgumentException, InvocationTargetException, InstantiationException {
+	IllegalArgumentException, InvocationTargetException, InstantiationException {
 
 		if (beanConfig.getState() == State.initialized)
 			return;
@@ -239,7 +208,7 @@ public class Kernel {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private void inject(Object[] data, Dependency dependency, Object toBean) throws IllegalAccessException,
-			IllegalArgumentException, InvocationTargetException, InstantiationException {
+	IllegalArgumentException, InvocationTargetException, InstantiationException {
 
 		if (!dependency.isNullAllowed() && data == null)
 			throw new KernelException("Can't inject <null> to field " + dependency.getField());
@@ -278,32 +247,7 @@ public class Kernel {
 			valueToSet = o;
 		}
 
-		Method setter = prepareSetterMethod(dependency.getField());
-		if (setter != null) {
-			setter.invoke(toBean, valueToSet);
-		} else {
-			dependency.getField().setAccessible(true);
-			dependency.getField().set(toBean, valueToSet);
-		}
-	}
-
-	private void injectConfiguration(Map<String, Object> ccc, BeanConfig beanConfig, Object bean)
-			throws IllegalAccessException, IllegalArgumentException, InvocationTargetException {
-		final Field[] fields = DependencyManager.getAllFields(beanConfig.getClazz());
-		for (Field field : fields) {
-			if (!ccc.containsKey(field.getName()))
-				continue;
-
-			Object valueToSet = ccc.get(field.getName());
-
-			Method setter = prepareSetterMethod(field);
-			if (setter != null) {
-				setter.invoke(bean, valueToSet);
-			} else {
-				field.setAccessible(true);
-				field.set(bean, valueToSet);
-			}
-		}
+		BeanUtils.setValue(toBean, dependency.getField(), valueToSet);
 	}
 
 	private void injectDependencies(Object bean, Dependency dep, Set<BeanConfig> createdBeansConfig, int deep)

@@ -1,6 +1,7 @@
-package tigase.kernel;
+package tigase.kernel.core;
 
-import tigase.kernel.BeanConfig.State;
+import tigase.kernel.KernelException;
+import tigase.kernel.core.BeanConfig.State;
 
 public class BeanConfigBuilder {
 

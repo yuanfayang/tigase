@@ -9,7 +9,7 @@ import javax.script.ScriptException;
 
 import tigase.disteventbus.EventBus;
 import tigase.disteventbus.EventHandler;
-import tigase.kernel.Kernel;
+import tigase.kernel.core.Kernel;
 import tigase.xml.Element;
 
 public class ListenerScript implements EventHandler {

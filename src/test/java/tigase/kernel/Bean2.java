@@ -1,5 +1,7 @@
 package tigase.kernel;
 
+import tigase.kernel.beans.Inject;
+
 public class Bean2 {
 
 	@Inject

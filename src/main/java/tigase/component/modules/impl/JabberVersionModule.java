@@ -22,7 +22,7 @@ import tigase.component.exceptions.ComponentException;
 import tigase.component.modules.AbstractModule;
 import tigase.criteria.Criteria;
 import tigase.criteria.ElementCriteria;
-import tigase.kernel.Inject;
+import tigase.kernel.beans.Inject;
 import tigase.server.Packet;
 import tigase.xml.Element;
 

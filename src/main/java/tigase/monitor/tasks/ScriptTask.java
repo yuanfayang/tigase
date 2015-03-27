@@ -5,8 +5,8 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 
-import tigase.kernel.Initializable;
-import tigase.kernel.Inject;
+import tigase.kernel.beans.Initializable;
+import tigase.kernel.beans.Inject;
 import tigase.monitor.MonitorTask;
 
 public class ScriptTask implements MonitorTask, Initializable {

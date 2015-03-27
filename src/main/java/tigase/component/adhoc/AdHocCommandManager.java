@@ -22,7 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import tigase.component.adhoc.AdHocResponse.State;
-import tigase.kernel.Inject;
+import tigase.kernel.beans.Inject;
 import tigase.server.Packet;
 import tigase.util.SimpleCache;
 import tigase.xml.Element;
