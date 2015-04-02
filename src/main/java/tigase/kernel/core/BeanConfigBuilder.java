@@ -1,7 +1,7 @@
 package tigase.kernel.core;
 
 import tigase.kernel.KernelException;
-import tigase.kernel.core.BeanConfig.State;
+import tigase.kernel.Registrar;
 
 public class BeanConfigBuilder {
 
@@ -49,15 +49,15 @@ public class BeanConfigBuilder {
 		dependencyManager.register(beanConfig);
 
 		if (beanInstance != null) {
-			kernel.getBeanInstances().put(beanConfig, beanInstance);
-			if (beanInstance instanceof Kernel) {
-				((Kernel) beanInstance).setParent(kernel);
-			}
-			beanConfig.setState(State.initialized);
+			kernel.putBeanInstance(beanConfig, beanInstance);
 		}
 
 		kernel.currentlyUsedConfigBuilder = null;
 		kernel.injectIfRequired(beanConfig);
+
+		for (BeanConfig rbc : kernel.getDependencyManager().getBeanConfigs(Registrar.class)) {
+			kernel.getInstance(rbc.getBeanName());
+		}
 	}
 
 	public BeanConfigBuilder exportable() {

@@ -79,9 +79,13 @@ public class DependencyManager {
 	}
 
 	public List<BeanConfig> getBeanConfigs(Class<?> type) {
+		return getBeanConfigs(type, true);
+	}
+
+	public List<BeanConfig> getBeanConfigs(final Class<?> type, final boolean allowNonExportable) {
 		ArrayList<BeanConfig> result = new ArrayList<BeanConfig>();
 		for (BeanConfig bc : beanConfigs.values()) {
-			if (type.isAssignableFrom(bc.getClazz())) {
+			if (type.isAssignableFrom(bc.getClazz()) && (allowNonExportable || bc.isExportable())) {
 				result.add(bc);
 			}
 		}

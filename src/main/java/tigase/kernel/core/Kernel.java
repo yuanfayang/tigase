@@ -16,6 +16,7 @@ import java.util.logging.Logger;
 
 import tigase.kernel.BeanUtils;
 import tigase.kernel.KernelException;
+import tigase.kernel.Registrar;
 import tigase.kernel.beans.Bean;
 import tigase.kernel.beans.BeanFactory;
 import tigase.kernel.beans.Initializable;
@@ -47,7 +48,8 @@ public class Kernel {
 		BeanConfig bc = dependencyManager.createBeanConfig(this, "kernel", Kernel.class);
 		dependencyManager.register(bc);
 		registerBean("kernel").asInstance(this).exec();
-		this.beanInstances.put(bc, this);
+
+		putBeanInstance(bc, this);
 	}
 
 	private Object createNewInstance(BeanConfig beanConfig) {
@@ -67,22 +69,22 @@ public class Kernel {
 		}
 	}
 
-	Map<BeanConfig, Object> getBeanInstances() {
-		return beanInstances;
-	}
-
 	public DependencyManager getDependencyManager() {
 		return dependencyManager;
 	}
 
-	@SuppressWarnings("unchecked")
 	public <T> T getInstance(Class<T> beanClass) {
-		final List<BeanConfig> bcs = dependencyManager.getBeanConfigs(beanClass);
+		return getInstance(beanClass, true);
+	}
+
+	@SuppressWarnings("unchecked")
+	protected <T> T getInstance(Class<T> beanClass, boolean allowNonExportable) {
+		final List<BeanConfig> bcs = dependencyManager.getBeanConfigs(beanClass, allowNonExportable);
 
 		if (bcs.size() > 1)
 			throw new KernelException("Too many beans implemented class " + beanClass);
 		else if (bcs.isEmpty() && this.parent != null && this.parent != this) {
-			return this.parent.getInstance(beanClass);
+			return this.parent.getInstance(beanClass, false);
 		}
 
 		if (bcs.isEmpty())
@@ -158,7 +160,7 @@ public class Kernel {
 		}
 	}
 
-	private void initBean(BeanConfig beanConfig, Set<BeanConfig> createdBeansConfig, int deep) throws IllegalAccessException,
+	protected void initBean(BeanConfig beanConfig, Set<BeanConfig> createdBeansConfig, int deep) throws IllegalAccessException,
 	IllegalArgumentException, InvocationTargetException, InstantiationException {
 
 		if (beanConfig.getState() == State.initialized)
@@ -171,7 +173,7 @@ public class Kernel {
 				initBean(beanConfig.getFactory(), new HashSet<BeanConfig>(), 0);
 			}
 			bean = createNewInstance(beanConfig);
-			beanConfig.getKernel().beanInstances.put(beanConfig, bean);
+			beanConfig.getKernel().putBeanInstance(beanConfig, bean);
 			createdBeansConfig.add(beanConfig);
 		} else {
 			bean = beanConfig.getKernel().beanInstances.get(beanConfig);
@@ -202,6 +204,14 @@ public class Kernel {
 				if (bi instanceof Initializable) {
 					((Initializable) bi).initialize();
 				}
+			}
+
+			if (Registrar.class.isAssignableFrom(beanConfig.getClazz())) {
+				RegistrarKernel k = new RegistrarKernel();
+				k.setName(beanConfig.getBeanName());
+				registerBean(beanConfig.getBeanName() + "#KERNEL").asInstance(k).exec();
+				((Registrar) bean).register(k);
+				// ((Registrar) bean).start(k);
 			}
 		}
 	}
@@ -256,12 +266,16 @@ public class Kernel {
 		ArrayList<Object> dataToInject = new ArrayList<Object>();
 
 		for (BeanConfig b : dependentBeansConfigs) {
-			if (!b.getKernel().beanInstances.containsKey(b)) {
-				initBean(b, createdBeansConfig, deep + 1);
+			if (b == null) {
+				dataToInject.add(null);
+			} else {
+				if (!b.getKernel().beanInstances.containsKey(b)) {
+					initBean(b, createdBeansConfig, deep + 1);
+				}
+				Object beanToInject = b.getKernel().beanInstances.get(b);
+				// if (beanToInject != null)
+				dataToInject.add(beanToInject);
 			}
-			Object beanToInject = b.getKernel().beanInstances.get(b);
-			// if (beanToInject != null)
-			dataToInject.add(beanToInject);
 		}
 		Object[] d;
 		if (dataToInject.isEmpty()) {
@@ -304,6 +318,14 @@ public class Kernel {
 		return dependencyManager.isBeanClassRegistered(beanName);
 	}
 
+	void putBeanInstance(BeanConfig beanConfig, Object beanInstance) {
+		this.beanInstances.put(beanConfig, beanInstance);
+		if (beanInstance instanceof Kernel && beanInstance != this) {
+			((Kernel) beanInstance).setParent(this);
+		}
+		beanConfig.setState(State.initialized);
+	}
+
 	public BeanConfigBuilder registerBean(Class<?> beanClass) {
 		if (currentlyUsedConfigBuilder != null)
 			throw new KernelException("Registration of bean '" + currentlyUsedConfigBuilder.getBeanName()
@@ -335,6 +357,16 @@ public class Kernel {
 	void setParent(Kernel parent) {
 		this.dependencyManager.setParent(parent.getDependencyManager());
 		this.parent = parent;
+	}
+
+	public void startSubKernels() {
+		for (BeanConfig bc : dependencyManager.getBeanConfigs(Registrar.class)) {
+			Registrar r = getInstance(bc.getBeanName());
+			Kernel k = getInstance(bc.getBeanName() + "#KERNEL");
+			r.start(k);
+			k.startSubKernels();
+		}
+
 	}
 
 	public void unregister(final String beanName) {
@@ -389,4 +421,5 @@ public class Kernel {
 			}
 		}
 	}
+
 }

@@ -6,4 +6,6 @@ public interface Registrar {
 
 	void register(Kernel kernel);
 
+	void start(Kernel krnl);
+
 }

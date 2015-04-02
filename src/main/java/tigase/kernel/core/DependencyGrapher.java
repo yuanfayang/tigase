@@ -23,10 +23,10 @@ public class DependencyGrapher {
 				continue;
 			structureSB.append('"').append(bc.getKernel().getName() + "." + bc.getBeanName()).append('"').append("[");
 
-			structureSB.append("label=<");
-			structureSB.append(bc.getBeanName()).append("<br/>").append("(").append(bc.getClazz().getName()).append(")");
+			structureSB.append("label=\"{");
+			structureSB.append(bc.getBeanName()).append("\\n").append("(").append(bc.getClazz().getName()).append(")");
 
-			structureSB.append(">");
+			structureSB.append("}\"");
 
 			structureSB.append("];\n");
 		}
@@ -81,6 +81,9 @@ public class DependencyGrapher {
 		StringBuilder sb = new StringBuilder();
 		sb.append("digraph ").append("Context").append(" {\n");
 		sb.append("label=").append("\"").append(kernel.getName()).append("\"\n");
+		sb.append("node[shape=record,style=filled,fillcolor=khaki1, color=brown]\n");
+		sb.append("edge[color=brown]\n");
+
 		// sb.append("rank=same\n");
 
 		HashSet<String> connections = new HashSet<String>();

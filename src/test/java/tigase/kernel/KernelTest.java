@@ -106,13 +106,13 @@ public class KernelTest {
 		assertEquals(b4, b3.getBean4());
 		assertEquals(b41, b3.getBean41());
 
-		assertNotNull(b1.getSs());
-		assertEquals(3, b1.getSs().length);
+		assertNotNull(b1.getTableOfSpecial());
+		assertEquals(3, b1.getTableOfSpecial().length);
 
-		assertEquals(3, b1.getXxx().size());
-		assertTrue(b1.getXxx().contains(b3));
-		assertTrue(b1.getXxx().contains(b4));
-		assertTrue(b1.getXxx().contains(b41));
+		assertEquals(3, b1.getCollectionOfSpecial().size());
+		assertTrue(b1.getCollectionOfSpecial().contains(b3));
+		assertTrue(b1.getCollectionOfSpecial().contains(b4));
+		assertTrue(b1.getCollectionOfSpecial().contains(b41));
 
 		krnl.unregister("bean4_1");
 		try {
@@ -124,16 +124,16 @@ public class KernelTest {
 		assertNull(b3.getBean41());
 		assertNull(b2.getBean4());
 
-		assertEquals(2, b1.getSs().length);
+		assertEquals(2, b1.getTableOfSpecial().length);
 
-		assertEquals(2, b1.getXxx().size());
-		assertTrue(b1.getXxx().contains(b3));
-		assertTrue(b1.getXxx().contains(b4));
+		assertEquals(2, b1.getCollectionOfSpecial().size());
+		assertTrue(b1.getCollectionOfSpecial().contains(b3));
+		assertTrue(b1.getCollectionOfSpecial().contains(b4));
 
 		krnl.registerBean("bean6").asClass(Bean6.class).exec();
 
-		assertEquals(3, b1.getSs().length);
-		assertEquals(3, b1.getXxx().size());
+		assertEquals(3, b1.getTableOfSpecial().length);
+		assertEquals(3, b1.getCollectionOfSpecial().size());
 
 		System.out.println(dg.getDependencyGraph());
 
@@ -168,10 +168,10 @@ public class KernelTest {
 
 		assertNotNull(b1);
 
-		assertNotNull(b1.getSs());
-		assertEquals(1, b1.getSs().length);
+		assertNotNull(b1.getTableOfSpecial());
+		assertEquals(1, b1.getTableOfSpecial().length);
 
-		assertEquals(1, b1.getXxx().size());
+		assertEquals(1, b1.getCollectionOfSpecial().size());
 	}
 
 	@Test
@@ -184,9 +184,9 @@ public class KernelTest {
 
 		assertNotNull(b1);
 
-		assertNull(b1.getSs());
+		assertNull(b1.getTableOfSpecial());
 
-		assertEquals(0, b1.getXxx().size());
+		assertEquals(0, b1.getCollectionOfSpecial().size());
 	}
 
 	@Test
@@ -218,6 +218,7 @@ public class KernelTest {
 		krnlParent.registerBean("bean40").asClass(Bean4.class).exportable().exec();
 		krnlParent.registerBean("bean41").asClass(Bean4.class).exec();
 		krnlParent.registerBean("bean42").asClass(Bean4.class).exportable().exec();
+		krnlParent.registerBean("bean5").asClass(Bean5.class).exportable().exec();
 		final Bean5 b5parent = new Bean5();
 		final Bean5 b51parent = new Bean5();
 		krnlParent.registerBean("bean5").asInstance(b5parent).exportable().exec();
@@ -238,11 +239,11 @@ public class KernelTest {
 
 		Bean1 bean1 = krnlChild2.getInstance(Bean1.class);
 
-		assertEquals(3, bean1.getXxx().size());
-		assertTrue(bean1.getXxx().contains(krnlParent.getInstance("bean40")));
-		assertTrue(bean1.getXxx().contains(krnlParent.getInstance("bean42")));
+		assertEquals(3, bean1.getCollectionOfSpecial().size());
+		assertTrue(bean1.getCollectionOfSpecial().contains(krnlParent.getInstance("bean40")));
+		assertTrue(bean1.getCollectionOfSpecial().contains(krnlParent.getInstance("bean42")));
 
-		assertEquals(3, bean1.getSs().length);
+		assertEquals(3, bean1.getTableOfSpecial().length);
 
 		DependencyGrapher dg = new DependencyGrapher(krnlParent);
 		System.out.println(dg.getDependencyGraph());
@@ -250,8 +251,14 @@ public class KernelTest {
 		assertEquals(b5ch1, krnlChild1.getInstance("bean5"));
 		assertEquals(b51parent, krnlChild1.getInstance("bean51"));
 
-		assertNotNull(krnlChild1.getInstance(Bean1.class));
+		assertNotNull(krnlChild1.getInstance(Bean5.class));
 
+		try {
+			krnlChild1.getInstance(Bean1.class);
+			Assert.fail();
+		} catch (KernelException e) {
+			assertEquals("Can't find bean implementing class tigase.kernel.Bean1", e.getMessage());
+		}
 		try {
 			krnlChild1.getInstance(Bean3.class);
 			Assert.fail();

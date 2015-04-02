@@ -14,11 +14,11 @@ public class Bean1 {
 	@Inject
 	private Bean3 bean3;
 
-	@Inject
-	private Special[] ss;
-
 	@Inject(type = Special.class)
-	private Set<Special> xxx;
+	private Set<Special> collectionOfSpecial;
+
+	@Inject
+	private Special[] tableOfSpecial;
 
 	public Bean2 getBean2() {
 		return bean2;
@@ -28,12 +28,12 @@ public class Bean1 {
 		return bean3;
 	}
 
-	public Special[] getSs() {
-		return ss;
+	public Set<Special> getCollectionOfSpecial() {
+		return collectionOfSpecial;
 	}
 
-	public Set<Special> getXxx() {
-		return xxx;
+	public Special[] getTableOfSpecial() {
+		return tableOfSpecial;
 	}
 
 	public void setBean2(Bean2 bean2) {
@@ -44,12 +44,12 @@ public class Bean1 {
 		this.bean3 = bean3;
 	}
 
-	public void setSs(Special[] ss) {
-		this.ss = ss;
+	public void setCollectionOfSpecial(Set<Special> xxx) {
+		this.collectionOfSpecial = xxx;
 	}
 
-	public void setXxx(Set<Special> xxx) {
-		this.xxx = xxx;
+	public void setTableOfSpecial(Special[] ss) {
+		this.tableOfSpecial = ss;
 	}
 
 }
