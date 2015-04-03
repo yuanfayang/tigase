@@ -2,6 +2,8 @@ package tigase.kernel.core;
 
 import java.util.HashSet;
 
+import tigase.kernel.core.Kernel.DelegatedBeanConfig;
+
 public class DependencyGrapher {
 
 	private Kernel kernel;
@@ -23,11 +25,16 @@ public class DependencyGrapher {
 				continue;
 			structureSB.append('"').append(bc.getKernel().getName() + "." + bc.getBeanName()).append('"').append("[");
 
-			structureSB.append("label=\"{");
-			structureSB.append(bc.getBeanName()).append("\\n").append("(").append(bc.getClazz().getName()).append(")");
-
-			structureSB.append("}\"");
-
+			if (bc instanceof DelegatedBeanConfig) {
+				structureSB.append("label=\"");
+				structureSB.append(bc.getBeanName());
+				structureSB.append("\"");
+				structureSB.append("shape=oval");
+			} else {
+				structureSB.append("label=\"{");
+				structureSB.append(bc.getBeanName()).append("\\n").append("(").append(bc.getClazz().getName()).append(")");
+				structureSB.append("}\"");
+			}
 			structureSB.append("];\n");
 		}
 		structureSB.append("}\n");
@@ -52,14 +59,17 @@ public class DependencyGrapher {
 				for (BeanConfig dBean : dBeans) {
 					StringBuilder sbi = new StringBuilder();
 					sbi.append('"').append(bc.getKernel().getName() + "." + bc.getBeanName()).append('"');
-					// sb.append(':').append(dp.getField().getName());
-					sbi.append("->");
-					if (dBean == null)
-						sbi.append("{UNKNOWN_").append(c).append("[label=\"").append(dp).append(
-								"\", fillcolor=red, style=filled, shape=box]}");
-					else
-						sbi.append('"').append(dBean.getKernel().getName() + "." + dBean.getBeanName()).append('"');
 
+					if (dBean instanceof DelegatedBeanConfig) {
+
+					} else {
+						sbi.append("->");
+						if (dBean == null)
+							sbi.append("{UNKNOWN_").append(c).append("[label=\"").append(dp).append(
+									"\", fillcolor=red, style=filled, shape=box]}");
+						else
+							sbi.append('"').append(dBean.getKernel().getName() + "." + dBean.getBeanName()).append('"');
+					}
 					connections.add(sbi.toString());
 
 				}

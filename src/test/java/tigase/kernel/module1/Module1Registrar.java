@@ -14,7 +14,8 @@ public class Module1Registrar implements Registrar {
 	@Override
 	public void start(Kernel krnl) {
 		System.out.println("Initializing Module1");
-		krnl.getParent().registerBean("Module1Service").asInstance(krnl.getInstance("service")).exec();
+		// krnl.getParent().registerBean("Module1Service").asInstance(krnl.getInstance("service")).exec();
+		krnl.ln("service", krnl.getParent(), "Module1Service");
 	}
 
 }

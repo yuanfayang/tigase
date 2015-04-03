@@ -1,6 +1,7 @@
 package tigase.kernel.core;
 
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,6 +26,55 @@ import tigase.kernel.beans.config.BeanConfigurator;
 import tigase.kernel.core.BeanConfig.State;
 
 public class Kernel {
+
+	static class DelegatedBeanConfig extends BeanConfig {
+
+		private final BeanConfig original;
+
+		DelegatedBeanConfig(String localName, BeanConfig src) {
+			super(localName, src.getClazz());
+			original = src;
+		}
+
+		@Override
+		public Class<?> getClazz() {
+			return original.getClazz();
+		}
+
+		@Override
+		public BeanConfig getFactory() {
+			return original.getFactory();
+		}
+
+		@Override
+		public Map<Field, Dependency> getFieldDependencies() {
+			return original.getFieldDependencies();
+		}
+
+		@Override
+		public Kernel getKernel() {
+			return original.getKernel();
+		}
+
+		public BeanConfig getOriginal() {
+			return original;
+		}
+
+		@Override
+		public State getState() {
+			return original.getState();
+		}
+
+		@Override
+		public boolean isExportable() {
+			return original.isExportable();
+		}
+
+		@Override
+		public String toString() {
+			return original.toString();
+		}
+	}
 
 	private final Map<BeanConfig, Object> beanInstances = new HashMap<BeanConfig, Object>();
 
@@ -55,7 +105,7 @@ public class Kernel {
 	private Object createNewInstance(BeanConfig beanConfig) {
 		try {
 			if (beanConfig.getFactory() != null) {
-				BeanFactory<?> factory = (BeanFactory<?>) beanConfig.getKernel().beanInstances.get(beanConfig.getFactory());
+				BeanFactory<?> factory = (BeanFactory<?>) beanConfig.getKernel().getInstance(beanConfig.getFactory());
 				return factory.createInstance();
 			} else {
 				if (log.isLoggable(Level.FINER))
@@ -71,6 +121,15 @@ public class Kernel {
 
 	public DependencyManager getDependencyManager() {
 		return dependencyManager;
+	}
+
+	public <T> T getInstance(BeanConfig beanConfig) {
+		if (beanConfig instanceof DelegatedBeanConfig) {
+			BeanConfig b = ((DelegatedBeanConfig) beanConfig).original;
+			return (T) beanConfig.getKernel().beanInstances.get(b);
+		} else {
+			return (T) beanConfig.getKernel().beanInstances.get(beanConfig);
+		}
 	}
 
 	public <T> T getInstance(Class<T> beanClass) {
@@ -101,7 +160,7 @@ public class Kernel {
 			}
 		}
 
-		Object result = bc.getKernel().beanInstances.get(bc);
+		Object result = bc.getKernel().getInstance(bc);
 
 		return (T) result;
 	}
@@ -119,14 +178,14 @@ public class Kernel {
 
 		if (bc.getState() != State.initialized) {
 			try {
-				initBean(bc, new HashSet<BeanConfig>(), 0);
+				bc.getKernel().initBean(bc, new HashSet<BeanConfig>(), 0);
 			} catch (Exception e) {
 				e.printStackTrace();
 				throw new KernelException(e);
 			}
 		}
 
-		Object result = bc.getKernel().beanInstances.get(bc);
+		Object result = bc.getKernel().getInstance(bc);
 
 		return (T) result;
 	}
@@ -160,8 +219,9 @@ public class Kernel {
 		}
 	}
 
-	protected void initBean(BeanConfig beanConfig, Set<BeanConfig> createdBeansConfig, int deep) throws IllegalAccessException,
+	protected void initBean(BeanConfig tmpBC, Set<BeanConfig> createdBeansConfig, int deep) throws IllegalAccessException,
 	IllegalArgumentException, InvocationTargetException, InstantiationException {
+		final BeanConfig beanConfig = tmpBC instanceof DelegatedBeanConfig ? ((DelegatedBeanConfig) tmpBC).original : tmpBC;
 
 		if (beanConfig.getState() == State.initialized)
 			return;
@@ -176,7 +236,7 @@ public class Kernel {
 			beanConfig.getKernel().putBeanInstance(beanConfig, bean);
 			createdBeansConfig.add(beanConfig);
 		} else {
-			bean = beanConfig.getKernel().beanInstances.get(beanConfig);
+			bean = beanConfig.getKernel().getInstance(beanConfig);
 		}
 
 		for (final Dependency dep : beanConfig.getFieldDependencies().values()) {
@@ -199,7 +259,7 @@ public class Kernel {
 
 		if (deep == 0) {
 			for (BeanConfig bc : createdBeansConfig) {
-				Object bi = bc.getKernel().beanInstances.get(bc);
+				Object bi = bc.getKernel().getInstance(bc);
 				bc.setState(State.initialized);
 				if (bi instanceof Initializable) {
 					((Initializable) bi).initialize();
@@ -272,7 +332,7 @@ public class Kernel {
 				if (!b.getKernel().beanInstances.containsKey(b)) {
 					initBean(b, createdBeansConfig, deep + 1);
 				}
-				Object beanToInject = b.getKernel().beanInstances.get(b);
+				Object beanToInject = b.getKernel().getInstance(b);
 				// if (beanToInject != null)
 				dataToInject.add(beanToInject);
 			}
@@ -302,7 +362,7 @@ public class Kernel {
 				if (depbc.getState() == State.initialized) {
 					if (beanConfig.getState() != State.initialized)
 						initBean(beanConfig, new HashSet<BeanConfig>(), 0);
-					Object bean = depbc.getKernel().beanInstances.get(depbc);
+					Object bean = depbc.getKernel().getInstance(depbc);
 
 					injectDependencies(bean, dep, new HashSet<BeanConfig>(), 0);
 				}
@@ -316,6 +376,15 @@ public class Kernel {
 
 	public boolean isBeanClassRegistered(String beanName) {
 		return dependencyManager.isBeanClassRegistered(beanName);
+	}
+
+	public void ln(String exportingBeanName, Kernel destinationKernel, String destinationName) {
+		final BeanConfig sbc = dependencyManager.getBeanConfig(exportingBeanName);
+		// Object bean = getInstance(sbc.getBeanName());
+
+		BeanConfig dbc = new DelegatedBeanConfig(destinationName, sbc);
+
+		destinationKernel.dependencyManager.register(dbc);
 	}
 
 	void putBeanInstance(BeanConfig beanConfig, Object beanInstance) {
@@ -377,7 +446,7 @@ public class Kernel {
 			for (BeanConfig bc : dependencyManager.getBeanConfigs()) {
 				if (bc.getState() != State.initialized)
 					continue;
-				Object ob = bc.getKernel().beanInstances.get(bc);
+				Object ob = bc.getKernel().getInstance(bc);
 				for (Dependency d : bc.getFieldDependencies().values()) {
 					BeanConfig[] cbcs = dependencyManager.getBeanConfig(d);
 
