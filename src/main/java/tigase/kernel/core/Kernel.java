@@ -334,7 +334,8 @@ public class Kernel {
 				}
 				Object beanToInject = b.getKernel().getInstance(b);
 				// if (beanToInject != null)
-				dataToInject.add(beanToInject);
+				if (!dataToInject.contains(beanToInject))
+					dataToInject.add(beanToInject);
 			}
 		}
 		Object[] d;
