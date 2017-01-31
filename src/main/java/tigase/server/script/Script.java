@@ -66,33 +66,15 @@ public class Script extends AbstractScriptCommand {
 
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public Bindings getBindings() {
 		return scriptEngine.createBindings();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	public String getFileExtension() {
 		return ext;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	public String getLanguageName() {
 		return language;
 	}
@@ -105,6 +87,7 @@ public class Script extends AbstractScriptCommand {
 	 *
 	 * @param id
 	 * @param description
+	 * @param group
 	 * @param script
 	 * @param lang
 	 * @param ext
@@ -112,15 +95,19 @@ public class Script extends AbstractScriptCommand {
 	 *
 	 * @throws ScriptException
 	 */
-	public void init(String id, String description, String script, String lang, String ext,
+	public void init(String id, String description, String group, String script, String lang, String ext,
 			Bindings binds)
 			throws ScriptException {
-		super.init(id, description);
+		super.init(id, description, group);
 		this.script = script;
 		this.language = lang;
 		this.ext = ext;
 
 		ScriptEngineManager scriptEngineManager = (ScriptEngineManager) binds.get(SCRI_MANA);
+
+		log.log( Level.FINEST,
+						 "Trying to load admin command: {0}, description: {1}, language: {2}, ext: {3}",
+						 new Object[] { id, description, this.language, this.ext } );
 
 		if (language != null) {
 			scriptEngine = scriptEngineManager.getEngineByName(language);
@@ -134,29 +121,19 @@ public class Script extends AbstractScriptCommand {
 			compiledScript = ((Compilable) scriptEngine).compile(script);
 		}
 
-		if (this.language == null) {
+		if (this.language == null && scriptEngine != null) {
 			this.language = scriptEngine.getFactory().getLanguageName();
 		}
 
-		if (this.ext == null) {
+		if (this.ext == null && scriptEngine != null) {
 			this.ext = scriptEngine.getFactory().getExtensions().get(0);
 		}
 
-		log.log(Level.INFO, "Initialized script command, lang: {0}, ext: {1}",
-				new Object[] { this.language,
-				this.ext });
+		log.log(Level.INFO, "Initialized script command, id: {0}, lang: {1}, ext: {2}",
+				new Object[] { id, this.language, this.ext });
 
-		// ", script text: \n" + this.script);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param binds
-	 * @param results
-	 */
 	@Override
 	@SuppressWarnings({ "unchecked" })
 	public void runCommand(Iq packet, Bindings binds, Queue<Packet> results) {

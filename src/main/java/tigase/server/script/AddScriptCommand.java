@@ -24,17 +24,9 @@ package tigase.server.script;
 
 //~--- non-JDK imports --------------------------------------------------------
 
-import tigase.server.CmdAcl;
-import tigase.server.Command;
-import tigase.server.Iq;
-import tigase.server.Packet;
-
-//~--- JDK imports ------------------------------------------------------------
-
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -43,11 +35,15 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import javax.script.Bindings;
 import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
+import tigase.server.BasicComponent;
+import tigase.server.CmdAcl;
+import tigase.server.Command;
+import tigase.server.Iq;
+import tigase.server.Packet;
 
 //~--- classes ----------------------------------------------------------------
 
@@ -68,6 +64,7 @@ public class AddScriptCommand extends AbstractScriptCommand {
 	 *
 	 * @param cmdId
 	 * @param cmdDescr
+	 * @param cmdGroup
 	 * @param script
 	 * @param lang
 	 * @param ext
@@ -78,12 +75,12 @@ public class AddScriptCommand extends AbstractScriptCommand {
 	 * @throws ScriptException
 	 */
 	@SuppressWarnings({ "unchecked" })
-	public Script addAdminScript(String cmdId, String cmdDescr, String script, String lang,
+	public Script addAdminScript(String cmdId, String cmdDescr, String cmdGroup, String script, String lang,
 			String ext, Bindings binds)
 			throws ScriptException {
 		Script as = new Script();
 
-		as.init(cmdId, cmdDescr, script, lang, ext, binds);
+		as.init(cmdId, cmdDescr, cmdGroup, script, lang, ext, binds);
 
 		Map<String, CommandIfc> adminCommands = (Map<String, CommandIfc>) binds.get(ADMN_CMDS);
 
@@ -103,26 +100,11 @@ public class AddScriptCommand extends AbstractScriptCommand {
 			}
 		}
 
-//  ServiceEntity serviceEntity = (ServiceEntity) binds.get(ADMN_DISC);
-//  ServiceEntity item = new ServiceEntity(as.getCommandId(),
-//          "http://jabber.org/protocol/admin#" + as.getCommandId(),
-//          cmdDescr);
-//  item.addIdentities(
-//          new ServiceIdentity("component", "generic", cmdDescr),
-//          new ServiceIdentity("automation", "command-node", cmdDescr));
-//  item.addFeatures(XMPPService.CMD_FEATURES);
-//  serviceEntity.addItems(item);
 		return as;
 	}
 
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public Bindings getBindings() {
 		return null;
@@ -130,20 +112,13 @@ public class AddScriptCommand extends AbstractScriptCommand {
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param binds
-	 * @param results
-	 */
 	@Override
 	@SuppressWarnings({ "unchecked" })
 	public void runCommand(Iq packet, Bindings binds, Queue<Packet> results) {
 		String language = Command.getFieldValue(packet, LANGUAGE);
 		String commandId = Command.getFieldValue(packet, COMMAND_ID);
 		String description = Command.getFieldValue(packet, DESCRIPT);
+		String group = Command.getFieldValue(packet, GROUP);
 		String[] scriptText = Command.getFieldValues(packet, SCRIPT_TEXT);
 		boolean saveToDisk = Command.getCheckBoxFieldValue(packet, SAVE_TO_DISK);
 
@@ -159,14 +134,21 @@ public class AddScriptCommand extends AbstractScriptCommand {
 			}
 
 			try {
-				Script s = addAdminScript(commandId, description, sb.toString(), language, null, binds);
+				String originalGroup = group;
+				if (group != null && group.contains("${componentName}")) {
+					BasicComponent component = (BasicComponent) binds.get("component");
+					if (component != null) {
+						group = group.replace("${componentName}", component.getDiscoDescription());
+					}
+				}			
+				Script s = addAdminScript(commandId, description, group, sb.toString(), language, null, binds);
 				Packet result = packet.commandResult(Command.DataType.result);
 
 				Command.addTextField(result, "Note", "Script loaded successfuly.");
 				results.offer(result);
 
 				if (saveToDisk) {
-					saveCommandToDisk(commandId, description, sb, s.getFileExtension(), binds);
+					saveCommandToDisk(commandId, description, originalGroup, sb, s.getFileExtension(), binds);
 				}
 			} catch (Exception e) {
 				log.log(Level.WARNING, "Can't initialize script: ", e);
@@ -197,6 +179,7 @@ public class AddScriptCommand extends AbstractScriptCommand {
 
 		Command.addFieldValue(result, DESCRIPT, "Short description");
 		Command.addFieldValue(result, COMMAND_ID, "new-command");
+		Command.addFieldValue(result, GROUP, "group");
 
 		ScriptEngineManager scriptEngineManager = (ScriptEngineManager) binds.get(SCRI_MANA);
 		List<ScriptEngineFactory> scriptFactories = scriptEngineManager.getEngineFactories();
@@ -227,7 +210,7 @@ public class AddScriptCommand extends AbstractScriptCommand {
 		return result;
 	}
 
-	private void saveCommandToDisk(String commandId, String description, StringBuilder sb,
+	private void saveCommandToDisk(String commandId, String description, String group, StringBuilder sb,
 			String fileExtension, Bindings binds)
 			throws IOException {
 		File fileName = new File((String) binds.get(SCRIPT_COMP_DIR), commandId + "." + fileExtension);
@@ -258,6 +241,9 @@ public class AddScriptCommand extends AbstractScriptCommand {
 		fw.write(comment + " " + SCRIPT_DESCRIPTION + " " + description + '\n');
 		fw.write(comment + " " + SCRIPT_ID + " " + commandId + '\n');
 		fw.write(comment + " " + SCRIPT_COMPONENT + " " + binds.get(COMPONENT_NAME) + '\n');
+		if (group != null) {
+			fw.write(comment + " " + SCRIPT_GROUP + " " + group + '\n');
+		}
 		fw.write(sb.toString());
 		fw.close();
 	}

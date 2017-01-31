@@ -26,19 +26,18 @@ package tigase.cluster.repo;
 
 //~--- non-JDK imports --------------------------------------------------------
 
+import tigase.db.DBInitException;
 import tigase.db.DataRepository;
+import tigase.db.Repository;
 import tigase.db.RepositoryFactory;
-
-//~--- JDK imports ------------------------------------------------------------
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.Map;
 
 /**
  * Class description
@@ -47,6 +46,7 @@ import java.util.Map;
  * @version        5.2.0, 13/03/09
  * @author         <a href="mailto:artur.hefczyc@tigase.org">Artur Hefczyc</a>
  */
+@Repository.Meta( supportedUris = { "jdbc:[^:]+:.*" } )
 public class ClConSQLRepository
 				extends ClConConfigRepository
 				implements ClusterRepoConstants {
@@ -85,7 +85,8 @@ public class ClConSQLRepository
 					+ "  " + PORT_COLUMN + " int,"
 					+ "  " + CPU_USAGE_COLUMN + " double precision unsigned not null,"
 					+ "  " + MEM_USAGE_COLUMN + " double precision unsigned not null,"
-					+ "  primary key(" + HOSTNAME_COLUMN + "))";
+					+ "  primary key(" + HOSTNAME_COLUMN + "))"
+					+ " ENGINE=InnoDB default character set utf8 ROW_FORMAT=DYNAMIC";
 	private static final String CREATE_TABLE_QUERY =
 					"create table " + TABLE_NAME + " ("
 					+ "  " + HOSTNAME_COLUMN + " varchar(512) not null,"
@@ -137,15 +138,16 @@ public class ClConSQLRepository
 
 	private DataRepository data_repo = null;
 
+	@Override
+	public void destroy() {
+		// This implementation of ClConConfigRepository is using shared connection
+		// pool to database which is cached by RepositoryFactory and maybe be used
+		// in other places, so we can not destroy it.
+		super.destroy();
+	}
+	
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param defs
-	 * @param params
-	 */
 	@Override
 	public void getDefaults(Map<String, Object> defs, Map<String, Object> params) {
 		super.getDefaults(defs, params);
@@ -160,17 +162,10 @@ public class ClConSQLRepository
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param conn_str
-	 * @param params
-	 *
-	 * @throws SQLException
-	 */
+	@Override
 	public void initRepository(String conn_str, Map<String, String> params)
-					throws SQLException {
+					throws DBInitException {
+		super.initRepository(conn_str, params);
 		try {
 			data_repo = RepositoryFactory.getDataRepository(null, conn_str, params);
 			checkDB();
@@ -186,12 +181,23 @@ public class ClConSQLRepository
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param item
-	 */
+	@Override
+	public void removeItem( String key ) {
+		super.removeItem( key );
+
+		try {
+			PreparedStatement removeItem = data_repo.getPreparedStatement( null, DELETE_ITEM_QUERY );
+			synchronized ( removeItem ) {
+				removeItem.setString( 1, key );
+				removeItem.executeUpdate();
+			}
+
+		} catch (SQLException e) {
+			log.log(Level.WARNING, "Problem removing elements from DB: ", e);
+		}
+
+	}
+
 	@Override
 	public void storeItem(ClusterRepoItem item) {
 		try {
@@ -225,12 +231,16 @@ public class ClConSQLRepository
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 */
 	@Override
 	public void reload() {
+		if ( ( System.currentTimeMillis() - lastReloadTime ) <= ( autoreload_interval * lastReloadTimeFactor ) ){
+			if ( log.isLoggable( Level.FINEST ) ){
+				log.log( Level.FINEST, "Last reload performed in {0}, skipping: ", ( System.currentTimeMillis() - lastReloadTime ) );
+			}
+			return;
+		}
+		lastReloadTime = System.currentTimeMillis();
+
 		super.reload();
 
 		ResultSet rs = null;
@@ -250,7 +260,7 @@ public class ClConSQLRepository
 					item.setPort(rs.getInt(PORT_COLUMN));
 					item.setCpuUsage(rs.getFloat(CPU_USAGE_COLUMN));
 					item.setMemUsage(rs.getFloat(MEM_USAGE_COLUMN));
-					itemLoaded(item);
+					itemLoaded( item );
 				}
 			}
 		} catch (SQLException e) {
@@ -262,31 +272,13 @@ public class ClConSQLRepository
 
 	//~--- set methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param properties
-	 */
 	@Override
 	public void setProperties(Map<String, Object> properties) {
 		super.setProperties(properties);
-
-		String repo_uri = (String) properties.get(REPO_URI_PROP_KEY);
-
-		try {
-			initRepository(repo_uri, null);
-		} catch (SQLException ex) {
-			log.log(Level.WARNING, "Problem initializing database.", ex);
-		}
 	}
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 */
 	@Override
 	public void store() {
 

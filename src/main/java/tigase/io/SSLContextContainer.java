@@ -48,12 +48,11 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509KeyManager;
 import javax.net.ssl.X509TrustManager;
-
 import tigase.cert.CertificateEntry;
 import tigase.cert.CertificateUtil;
 
@@ -91,47 +90,21 @@ public class SSLContextContainer implements SSLContextContainerIfc {
 		}
 
 		// ~--- methods
-		// ------------------------------------------------------------
 
 		// Implementation of javax.net.ssl.X509TrustManager
 
-		/**
-		 * Method description
-		 * 
-		 * 
-		 * @param x509CertificateArray
-		 * @param string
-		 * 
-		 * @throws CertificateException
-		 */
 		@Override
 		public void checkClientTrusted(final X509Certificate[] x509CertificateArray, final String string)
 				throws CertificateException {
 		}
 
-		/**
-		 * Method description
-		 * 
-		 * 
-		 * @param x509CertificateArray
-		 * @param string
-		 * 
-		 * @throws CertificateException
-		 */
 		@Override
 		public void checkServerTrusted(final X509Certificate[] x509CertificateArray, final String string)
 				throws CertificateException {
 		}
 
 		// ~--- get methods
-		// --------------------------------------------------------
 
-		/**
-		 * Method description
-		 * 
-		 * 
-		 * 
-		 */
 		@Override
 		public X509Certificate[] getAcceptedIssuers() {
 			return issuers;
@@ -139,18 +112,9 @@ public class SSLContextContainer implements SSLContextContainerIfc {
 	}
 
 	// ~--- fields
-	// ---------------------------------------------------------------
 
 	private class PEMFileFilter implements FileFilter {
 
-		/**
-		 * Method description
-		 * 
-		 * 
-		 * @param pathname
-		 * 
-		 * 
-		 */
 		@Override
 		public boolean accept(File pathname) {
 			if (pathname.isFile()
@@ -163,15 +127,15 @@ public class SSLContextContainer implements SSLContextContainerIfc {
 			return false;
 		}
 	}
-
+	
 	private static final Logger log = Logger.getLogger(SSLContextContainer.class.getName());
 	public final static String PER_DOMAIN_CERTIFICATE_KEY = "virt-hosts-cert-";
 	private ArrayList<X509Certificate> acceptedIssuers = new ArrayList<X509Certificate>(200);
 	private File[] certsDirs = null;
-	private String def_cert_alias = null;
+	protected String def_cert_alias = null;
 	private String email = "admin@tigase.org";
 	private char[] emptyPass = new char[0];
-	private Map<String, KeyManagerFactory> kmfs = new ConcurrentSkipListMap<String, KeyManagerFactory>();
+	protected Map<String, KeyManagerFactory> kmfs = new ConcurrentSkipListMap<String, KeyManagerFactory>();
 	private String o = "Tigase.org";
 	private String ou = "XMPP Service";
 	private SecureRandom secureRandom = new SecureRandom();
@@ -179,12 +143,13 @@ public class SSLContextContainer implements SSLContextContainerIfc {
 	// ~--- methods
 	// --------------------------------------------------------------
 
-	private Map<String, SSLContext> sslContexts = new ConcurrentSkipListMap<String, SSLContext>();
+	protected Map<String, SSLContext> sslContexts = new ConcurrentSkipListMap<String, SSLContext>();
 
 	// ~--- get methods
 	// ----------------------------------------------------------
 
 	private X509TrustManager[] tms = new X509TrustManager[] { new FakeTrustManager() };
+	protected X509KeyManager[] kms = null;
 
 	private KeyStore trustKeyStore = null;
 
@@ -211,14 +176,6 @@ public class SSLContextContainer implements SSLContextContainerIfc {
 		return kmf;
 	}
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * @param params
-	 * 
-	 * @throws CertificateParsingException
-	 */
 	@Override
 	public void addCertificates(Map<String, String> params) throws CertificateParsingException {
 		String pemCert = params.get(PEM_CERTIFICATE_KEY);
@@ -287,15 +244,6 @@ public class SSLContextContainer implements SSLContextContainerIfc {
 		return null;
 	}
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * @param protocol
-	 * @param hostname
-	 * 
-	 * 
-	 */
 	@Override
 	public SSLContext getSSLContext(String protocol, String hostname, boolean clientMode, TrustManager... tms) {
 		SSLContext sslContext = null;
@@ -344,7 +292,7 @@ public class SSLContextContainer implements SSLContextContainerIfc {
 				}
 
 				sslContext = SSLContext.getInstance(protocol);
-				sslContext.init(kmf.getKeyManagers(), tms, secureRandom);
+				sslContext.init((hostname == null && kms != null) ? kms : kmf.getKeyManagers(), tms, secureRandom);
 				sslContexts.put(alias, sslContext);
 			}
 		} catch (Exception e) {
@@ -355,23 +303,11 @@ public class SSLContextContainer implements SSLContextContainerIfc {
 		return sslContext;
 	}
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * 
-	 */
 	@Override
 	public KeyStore getTrustStore() {
 		return trustKeyStore;
 	}
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * @param params
-	 */
 	@Override
 	public void init(Map<String, Object> params) {
 		try {

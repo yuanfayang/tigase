@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.Map;
+import tigase.db.DBInitException;
 
 /**
  * This implementation stores virtual domains in the UserRepository database. It
@@ -101,37 +102,23 @@ public class VHostJDBCRepository
 	private String def_srv_address   = null;
 	private int max_domains_per_user = DOMAINS_PER_USER_LIMIT_PROP_VAL;
 
+	@Override
+	public void destroy() {
+		// Nothing to do
+	}
+	
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String getConfigKey() {
 		return VHostRepoDefaults.getConfigKey();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String[] getDefaultPropetyItems() {
 		return VHostRepoDefaults.getDefaultPropetyItems();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param defs
-	 * @param params
-	 */
 	@Override
 	public void getDefaults(Map<String, Object> defs, Map<String, Object> params) {
 
@@ -149,58 +136,33 @@ public class VHostJDBCRepository
 		defs.put(DOMAINS_PER_USER_LIMIT_PROP_KEY, DOMAINS_PER_USER_LIMIT_PROP_VAL);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public VHostItem getItemInstance() {
 		return VHostRepoDefaults.getItemInstance();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String getItemsListPKey() {
 		return VHostRepoDefaults.getItemsListPKey();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String getPropertyKey() {
 		return VHostRepoDefaults.getPropertyKey();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public BareJID getRepoUser() {
 		return VHostRepoDefaults.getRepoUser();
 	}
 
+	@Override
+	public void initRepository(String resource_uri, Map<String, String> params) throws DBInitException {
+		// Nothing to do
+	}
+	
 	//~--- set methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param properties
-	 */
 	@Override
 	public void setProperties(Map<String, Object> properties) {
 
@@ -218,12 +180,6 @@ public class VHostJDBCRepository
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Performs validation of given VHostItem
-	 *
-	 * @param item VHostItem which should be validated
-	 * 
-	 */
 	@Override
 	public String validateItem(VHostItem item) {
 		if ((item.getVhost() == null) || (item.getVhost().getDomain() == null) ||
@@ -242,6 +198,11 @@ public class VHostJDBCRepository
 			return "Maximum number of domains exceeded for the user! Current number is: " +
 						 vhost_count;
 		}
+		
+		if (item.getS2sSecret() == null) {
+			return "S2S Secret is required";
+		}
+		
 		if (System.getProperty("vhost-disable-dns-check") != null) {
 			return null;
 		}

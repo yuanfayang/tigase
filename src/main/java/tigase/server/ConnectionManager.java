@@ -26,19 +26,6 @@ package tigase.server;
 
 //~--- non-JDK imports --------------------------------------------------------
 
-import tigase.server.script.CommandIfc;
-
-import tigase.xmpp.JID;
-import tigase.xmpp.XMPPDomBuilderHandler;
-import tigase.xmpp.XMPPIOService;
-import static tigase.xmpp.XMPPIOService.DOM_HANDLER;
-import tigase.xmpp.XMPPIOServiceListener;
-
-import tigase.annotations.TODO;
-import tigase.net.*;
-import tigase.stats.StatisticsList;
-import tigase.util.DataTypes;
-import tigase.xml.Element;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -49,6 +36,27 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.script.Bindings;
+
+import tigase.annotations.TODO;
+import tigase.conf.ConfigurationException;
+import tigase.net.*;
+
+import tigase.server.script.CommandIfc;
+
+import tigase.xmpp.BareJID;
+
+import tigase.stats.StatisticsList;
+import tigase.util.DataTypes;
+import tigase.xml.Element;
+
+import tigase.xmpp.JID;
+import tigase.xmpp.XMPPDomBuilderHandler;
+import tigase.xmpp.XMPPIOService;
+
+import static tigase.xmpp.XMPPIOService.DOM_HANDLER;
+
+import tigase.xmpp.XMPPIOServiceListener;
+
 
 /**
  * Describe class ConnectionManager here.
@@ -113,12 +121,12 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 
 	/** Field description */
 	protected static final int NET_BUFFER_LIMIT_HT_PROP_VAL = 20*1024*1024;
-	
+
 	/** Field description */
 	protected static final String NET_BUFFER_LIMIT_PROP_KEY= "net-buffer-limit";
-	
+
 	/** Field description */
-	protected static final int NET_BUFFER_LIMIT_ST_PROP_VAL = 2*1024*1024;	
+	protected static final int NET_BUFFER_LIMIT_ST_PROP_VAL = 2*1024*1024;
 	/**
 	 * Key name of the system property for configuration protection
 	 * from system overload and DOS attack.
@@ -198,8 +206,10 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 	protected static final String WATCHDOG_TIMEOUT = "watchdog_timeout";
 	protected static final String WATCHDOG_PING_TYPE_KEY = "watchdog_ping_type";
 
-
-  //J+
+	protected static final Element pingElement = new Element( "iq",
+								new Element[] { new Element( "ping", new String[] { "xmlns" }, new String[] { "urn:xmpp:ping" } ) },
+								new String[] { "type", "id" },
+								new String[] { "get", "tigase-ping" } );
 
 	//~--- fields ---------------------------------------------------------------
 
@@ -277,12 +287,14 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 		boolean xmppLimitHit = false;
 
 		if (last_minute_packets_limit > 0) {
-			xmppLimitHit = (serv.getPacketsReceived(false) >= last_minute_packets_limit) ||
-					(serv.getPacketsSent(false) >= last_minute_packets_limit);
+			xmppLimitHit = (serv.getPacketsReceived(false) >= last_minute_packets_limit)
+//							|| (serv.getPacketsSent(false) >= last_minute_packets_limit)
+							;
 		}
 		if (!xmppLimitHit && (total_packets_limit > 0)) {
-			xmppLimitHit = (serv.getTotalPacketsReceived() >= total_packets_limit) || (serv
-					.getTotalPacketsSent() >= total_packets_limit);
+			xmppLimitHit = (serv.getTotalPacketsReceived() >= total_packets_limit)
+//							|| (serv.getTotalPacketsSent() >= total_packets_limit)
+							;
 		}
 		if (xmppLimitHit) {
 			Level level = Level.FINER;
@@ -393,7 +405,9 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 			reconnectService(params, connectionDelay);
 		}
 		waitingTasks.clear();
-		watchdog.start();
+		if ( null != watchdog ){
+			watchdog.start();
+		}
 	}
 
 	@Override
@@ -433,9 +447,18 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 	 *
 	 *
 	 *
-	 * @return a value of <code>Queue<Packet></code>
+	 * @return a value of {@code Queue<Packet>}
 	 */
 	public abstract Queue<Packet> processSocketData(IO serv);
+
+	/**
+	 * Processes undelivered packets
+	 * @param packet
+	 * @param errorMessage
+	 */
+	public boolean processUndeliveredPacket(Packet packet, String errorMessage) {
+		return false;
+	}
 
 	/**
 	 * Method description
@@ -483,7 +506,7 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 
 				// Is it at all possible to happen???
 				// let's log it for now....
-				log.log(Level.WARNING,
+				log.log(Level.FINE,
 						"{0}: Attempt to add different service with the same ID: {1}", new Object[] {
 						getName(),
 						service });
@@ -679,7 +702,7 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 
 		props.put(NET_BUFFER_LIMIT_PROP_KEY, isHighThroughput()
 				? NET_BUFFER_LIMIT_HT_PROP_VAL : NET_BUFFER_LIMIT_ST_PROP_VAL);
-		
+
 		if ( params.get( "--" + ELEMENTS_NUMBER_LIMIT_PROP_KEY ) != null ){
 			elements_number_limit = Integer.valueOf( (String)params.get( "--" + ELEMENTS_NUMBER_LIMIT_PROP_KEY ) );
 		} else {
@@ -826,14 +849,16 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 	@Override
 	public void setName(String name) {
 		super.setName(name);
+		setupWatchdogThread();
+	}
+
+	protected void setupWatchdogThread() {
 		watchdog = new Thread(new Watchdog(), "Watchdog - " + getName());
 		watchdog.setDaemon(true);
 	}
 
-
-
 	@Override
-	public void setProperties(Map<String, Object> props) {
+	public void setProperties(Map<String, Object> props) throws ConfigurationException {
 		super.setProperties(props);
 		if (props.get(MAX_INACTIVITY_TIME) != null) {
 			maxInactivityTime = (Long) props.get(MAX_INACTIVITY_TIME) * SECOND;
@@ -1137,7 +1162,7 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 	 *
 	 *
 	 *
-	 * @return a value of <code>Map<String,Object></code>
+	 * @return a value of {@code Map<String,Object>}
 	 */
 	protected Map<String, Object> getParamsForPort(int port) {
 		return null;
@@ -1240,7 +1265,7 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 	//~--- methods --------------------------------------------------------------
 
 	private void putDefPortParams(Map<String, Object> props, int port, SocketType sock) {
-		log.log(Level.CONFIG, "Generating defaults for port: {0}", port);
+		log.log(Level.CONFIG, "Generating defaults for port: {0,number,#}", port);
 		props.put(PROP_KEY + port + "/" + PORT_TYPE_PROP_KEY, ConnectionType.accept);
 		props.put(PROP_KEY + port + "/" + PORT_SOCKET_PROP_KEY, sock);
 		props.put(PROP_KEY + port + "/" + PORT_IFC_PROP_KEY, PORT_IFC_PROP_VAL);
@@ -1263,9 +1288,8 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 					"remote-hostname");
 
 			log.log(Level.FINER,
-					"Reconnecting service for: {0}, scheduling next try in {1}secs, cid: {2}",
-					new Object[] { getName(),
-					delay / 1000, cid });
+					"Reconnecting service for: {0}, scheduling next try in {1}secs, cid: {2}, props: {3}",
+					new Object[] { getName(), delay / 1000, cid, port_props });
 		}
 		addTimerTask(new tigase.util.TimerTask() {
 			@Override
@@ -1280,7 +1304,7 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 
 				if (log.isLoggable(Level.FINE)) {
 					log.log(Level.FINE,
-							"Reconnecting service for component: {0}, to remote host: {1} on port: {2}",
+							"Reconnecting service for component: {0}, to remote host: {1} on port: {2,number,#}",
 							new Object[] { getName(),
 							host, port });
 				}
@@ -1328,8 +1352,8 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 			String cid = "" + port_props.get("local-hostname") + "@" + port_props.get(
 					"remote-hostname");
 
-			if (log.isLoggable(Level.FINEST)) {
-				log.log(Level.FINEST, "Accept called for service: {0}", cid);
+			if ( log.isLoggable( Level.FINEST ) ){
+				log.log( Level.FINEST, "Accept called for service: {0}, port_props: {1}", new Object[] {cid, port_props} );
 			}
 
 			IO serv = getXMPPIOServiceInstance();
@@ -1352,9 +1376,8 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 					// Accept side for component service is not ready yet?
 					// Let's wait for a few secs and try again.
 					if (log.isLoggable(Level.FINEST)) {
-						log.log(Level.FINEST, "Problem reconnecting the service: {0}, cid: {1}",
-								new Object[] { serv,
-								cid });
+						log.log(Level.FINEST, "Problem reconnecting the service: {0}, port_props: {1}, exception: {2}",
+								new Object[] { serv, port_props, e });
 					}
 					updateConnectionDetails(port_props);
 
@@ -1495,11 +1518,8 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 	private class Watchdog
 					implements Runnable {
 
-		private final Element pingElement = new Element( "ping",
-																										 new String[] { "xmlns" },
-																										 new String[] { "urn:xmpp:ping" } );
-		private long pingCount = 0;
-
+		Packet pingPacket;
+		
 		@Override
 		public void run() {
 			while (true) {
@@ -1551,7 +1571,14 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 											 * ping type. */
 											switch ( watchdogPingType ) {
 												case XMPP:
-													writePacketToSocket( getPingPacket( service ));
+													 pingPacket = Iq.packetInstance( pingElement.clone(),
+														 JID.jidInstanceNS( (String) service.getSessionData().get( XMPPIOService.HOSTNAME_KEY ) ),
+														 JID.jidInstanceNS( service.getUserJid() ) );
+													if ( !writePacketToSocket( (IO) service, pingPacket ) ){
+														// writing failed, stopp service
+														++watchdogStopped;
+														service.stop();
+													}
 													break;
 
 												case WHITESPACE:
@@ -1582,28 +1609,6 @@ public abstract class ConnectionManager<IO extends XMPPIOService<?>>
 			}
 		}
 
-		/**
-		 * Creates {@code ping} {@link Packet} addressed to the {@link JID}
-		 * pertaining to the {@link XMPPIOService} object passed as argument.
-		 *
-		 * @param service {@link XMPPIOService} object for which {@code ping} packet
-		 *                should be generated.
-		 *
-		 * @return {@code ping} {@link Packet} addressed to the {@link JID} owner of
-		 *         {@link XMPPIOService}.
-		 */
-		private Packet getPingPacket( XMPPIOService service ) {
-			JID from = JID.jidInstanceNS( (String) service.getSessionData().get(XMPPIOService.HOSTNAME_KEY) );
-			JID to = JID.jidInstanceNS( service.getUserJid() );
-
-			Element iq = new Element( "iq",
-																new String[] { "type", "id" },
-																new String[] { "get", "tigase-ping-" + pingCount++ } );
-			Packet ping = Packet.packetInstance( iq, from, to );
-			ping.setPacketTo( service.getConnectionId() );
-			ping.getElement().addChild( pingElement );
-			return ping;
-		}
 	}
 }    // ConnectionManager
 

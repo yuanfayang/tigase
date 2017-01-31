@@ -6,7 +6,7 @@ INSTALLER_DIR="installer"
 ORIGINAL_IZPACK_DIR="izpack.original"
 PATCHED_IZPACK_DIR="izpack.patched"
 
-GIT_URL="git://git.codehaus.org/izpack.git"
+GIT_URL="https://github.com/izpack/izpack.git"
 
 # create installer directory
 if [ !  -e $INSTALLER_DIR ] ; then
@@ -46,6 +46,9 @@ if [ ! -e $INSTALLER_DIR/$PATCHED_IZPACK_DIR/utils/wrappers/ ] ; then
 	mkdir -p $INSTALLER_DIR/$PATCHED_IZPACK_DIR/utils/wrappers || exit -1
 	cp -r $INSTALLER_DIR/$ORIGINAL_IZPACK_DIR/izpack-utils/src/main/resources/utils/wrappers $INSTALLER_DIR/$PATCHED_IZPACK_DIR/utils || exit -1
 fi
+
+# get dependencies
+mvn -f modules/distribution/pom.xml dependency:copy-dependencies -DoverWriteReleases=true -DoverWriteSnapshots=true -DoutputDirectory=${PWD}/jars -Dmdep.stripVersion=true
 
 # add tigase classes to installer build path
 mkdir $INSTALLER_DIR/$PATCHED_IZPACK_DIR/tigaseLib

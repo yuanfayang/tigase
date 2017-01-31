@@ -89,8 +89,12 @@ public class TLSWrapper {
 
 	private static final String[] HARDENED_MODE_FORBIDDEN_SIPHERS = new String[] { "TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA",
 			"TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA", "TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA",
-			"TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA", "SSL_DHE_RSA_WITH_3DES_EDE_CBC_SHA", "SSL_DHE_DSS_WITH_3DES_EDE_CBC_SHA" };
-	
+			"TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA", "SSL_DHE_RSA_WITH_3DES_EDE_CBC_SHA", "SSL_DHE_DSS_WITH_3DES_EDE_CBC_SHA",
+			"TLS_ECDHE_ECDSA_WITH_RC4_128_SHA", "TLS_ECDHE_RSA_WITH_RC4_128_SHA", "SSL_RSA_WITH_RC4_128_SHA",
+			"TLS_ECDH_ECDSA_WITH_RC4_128_SHA", "TLS_ECDH_RSA_WITH_RC4_128_SHA", "SSL_RSA_WITH_RC4_128_MD5",
+			"SSL_RSA_EXPORT_WITH_RC4_40_MD5", "TLS_KRB5_WITH_RC4_128_SHA", "TLS_KRB5_WITH_RC4_128_MD5",
+			"TLS_KRB5_EXPORT_WITH_RC4_40_SHA", "TLS_KRB5_EXPORT_WITH_RC4_40_MD5" };
+
 	private static String[] enabledProtocols;
 
 	private static String[] enabledCiphers;
@@ -139,6 +143,7 @@ public class TLSWrapper {
 		if (enabledCiphersProp != null) {
 			enabledCiphers = enabledCiphersProp.split(",");
 		} else if (XMPPServer.isHardenedModeEnabled()) {
+			System.setProperty("jdk.tls.ephemeralDHKeySize", "2048");
 			ArrayList<String> ciphers = new ArrayList<String>(Arrays.asList(allEnabledCiphers));
 			ciphers.removeAll(Arrays.asList(HARDENED_MODE_FORBIDDEN_SIPHERS));
 			enabledCiphers = ciphers.toArray(new String[] {});
@@ -159,10 +164,16 @@ public class TLSWrapper {
 	 * 
 	 * @param sslc
 	 * @param eventHandler
+	 * @param hostname
+	 * @param port
 	 * @param clientMode
+	 * @param wantClientAuth
 	 */
-	public TLSWrapper(SSLContext sslc, TLSEventHandler eventHandler, boolean clientMode, boolean wantClientAuth) {
-		tlsEngine = sslc.createSSLEngine();
+	public TLSWrapper(SSLContext sslc, TLSEventHandler eventHandler, String hostname, int port, boolean clientMode, boolean wantClientAuth) {
+		if (clientMode && hostname != null)
+			tlsEngine = sslc.createSSLEngine(hostname, port);
+		else
+			tlsEngine = sslc.createSSLEngine();
 		tlsEngine.setUseClientMode(clientMode);
 
 		if (enabledCiphers != null) {
@@ -181,13 +192,14 @@ public class TLSWrapper {
 			tlsEngine.setWantClientAuth(true);
 		}
 
-		log.info("Created "
-				+ (clientMode ? "client" : "server")
-				+ " TLSWrapper. Protocols:"
-				+ (tlsEngine.getEnabledProtocols() == null ? " default" : Arrays.toString(tlsEngine.getEnabledProtocols()))
-				+ "; Ciphers:"
-				+ (tlsEngine.getEnabledCipherSuites() == null ? " default"
-						: Arrays.toString(tlsEngine.getEnabledCipherSuites())));
+		if (log.isLoggable(Level.FINEST))
+			log.finest("Created "
+					+ (clientMode ? "client" : "server")
+					+ " TLSWrapper. Protocols:"
+					+ (tlsEngine.getEnabledProtocols() == null ? " default" : Arrays.toString(tlsEngine.getEnabledProtocols()))
+					+ "; Ciphers:"
+					+ (tlsEngine.getEnabledCipherSuites() == null ? " default"
+							: Arrays.toString(tlsEngine.getEnabledCipherSuites())));
 
 	}
 
@@ -209,7 +221,7 @@ public class TLSWrapper {
 	 */
 	public void close() throws SSLException {
 		tlsEngine.closeOutbound();
-
+		tlsEngine.getSession().invalidate();
 		// tlsEngine.closeInbound();
 	}
 

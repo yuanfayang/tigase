@@ -26,6 +26,7 @@ package tigase.server.amp.action;
 
 //~--- non-JDK imports --------------------------------------------------------
 
+import java.util.List;
 import tigase.server.amp.ActionAbstract;
 import tigase.server.Packet;
 
@@ -45,43 +46,20 @@ public class Deliver
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param rule
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public boolean execute(Packet packet, Element rule) {
 		Packet result     = packet.copyElementOnly();
-		String to_conn_id = packet.getAttributeStaticStr(TO_CONN_ID);
-
-		if (to_conn_id != null) {
-			result.setPacketTo(JID.jidInstanceNS(to_conn_id));
-		}
+		if (packet.getAttributeStaticStr(FROM_CONN_ID) == null)
+			result.setPacketFrom(packet.getPacketTo());
 		removeTigasePayload(result);
 		resultsHandler.addOutPacket(result);
-
-		return false;
+		return true;
 	}
 
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String getName() {
 		return name;
 	}
 }
-
-
-//~ Formatted in Tigase Code Convention on 13/02/20

@@ -33,12 +33,6 @@ import tigase.server.ReceiverTimeoutHandler;
 import tigase.server.xmppclient.ClientConnectionManager;
 import tigase.server.xmppclient.SeeOtherHostIfc.Phase;
 
-import tigase.stats.StatisticsList;
-
-import tigase.util.TigaseStringprepException;
-
-import tigase.xml.Element;
-
 import tigase.xmpp.Authorization;
 import tigase.xmpp.BareJID;
 import tigase.xmpp.JID;
@@ -46,19 +40,30 @@ import tigase.xmpp.PacketErrorTypeException;
 import tigase.xmpp.StanzaType;
 import tigase.xmpp.XMPPIOService;
 
-import static tigase.server.bosh.Constants.*;
+import tigase.conf.ConfigurationException;
+import tigase.stats.StatisticsList;
+import tigase.util.TigaseStringprepException;
+import tigase.xml.Element;
 
-//~--- JDK imports ------------------------------------------------------------
-
+import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.TimeUnit;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.Map;
 import java.util.Queue;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.FileHandler;
+import java.util.logging.Filter;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import javax.script.Bindings;
+
+import static tigase.server.bosh.Constants.*;
 
 /**
  * Describe class BoshConnectionManager here.
@@ -95,6 +100,30 @@ public class BoshConnectionManager
 	private long                   bosh_session_close_delay =
 			BOSH_SESSION_CLOSE_DELAY_DEF_VAL;
 	private long                   batch_queue_timeout = BATCH_QUEUE_TIMEOUT_VAL;
+	private int					   maxSessionWaitingPackets = MAX_SESSION_WAITING_PACKETS_VAL;
+	private boolean				   sendNodeHostname	   = SEND_NODE_HOSTNAME_VAL;
+
+	protected enum BOSH_OPERATION_TYPE {
+
+		CREATE, REMOVE, INVALID_SID,
+		TIMER;
+
+		private static final Map<String, BOSH_OPERATION_TYPE> nameToValueMap
+																													= new HashMap<String, BOSH_OPERATION_TYPE>();
+
+		static {
+			for ( BOSH_OPERATION_TYPE value : EnumSet.allOf( BOSH_OPERATION_TYPE.class ) ) {
+				nameToValueMap.put( value.name(), value );
+			}
+		}
+
+		public static BOSH_OPERATION_TYPE forName( String name ) {
+			return nameToValueMap.get( name );
+		}
+
+	};
+
+	private static Handler sidFilehandler;
 
 	// This should be actually a multi-thread save variable.
 	// Changing it to
@@ -105,39 +134,23 @@ public class BoshConnectionManager
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param bs
-	 *
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
 	@Override
 	public boolean addOutStreamClosed(Packet packet, BoshSession bs) {
 		packet.setPacketFrom(getFromAddress(bs.getSid().toString()));
 		packet.setPacketTo(bs.getDataReceiver());
 		packet.initVars(packet.getPacketFrom(), packet.getPacketTo());
 		bs.close();
-		if (log.isLoggable(Level.FINEST)) {
-			log.finest("closing BOSH session with sid = " + bs.getSid().toString());
+		if ( log.isLoggable( Level.FINEST ) ){
+			log.log( Level.FINEST, "{0} : {1} ({2})",
+										 new Object[] { BOSH_OPERATION_TYPE.REMOVE, bs.getSid(),
+																		"Closing bosh session" } );
 		}
+
 		sessions.remove(bs.getSid());
 
 		return addOutPacketWithTimeout(packet, stoppedHandler, 15l, TimeUnit.SECONDS);
 	}
 
-	/**
-	 *
-	 * @param packet
-	 * @param bs
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
 	@Override
 	public boolean addOutStreamOpen(Packet packet, BoshSession bs) {
 		packet.initVars(getFromAddress(bs.getSid().toString()), bs.getDataReceiver());
@@ -145,34 +158,16 @@ public class BoshConnectionManager
 		return addOutPacketWithTimeout(packet, startedHandler, 15l, TimeUnit.SECONDS);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param tt
-	 */
 	@Override
 	public void cancelSendQueueTask(BoshSendQueueTask tt) {
 		tt.cancel();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param tt
-	 */
 	@Override
 	public void cancelTask(BoshTask tt) {
 		tt.cancel();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 */
 	@Override
 	public void processPacket(final Packet packet) {
 		if (log.isLoggable(Level.FINEST)) {
@@ -183,16 +178,91 @@ public class BoshConnectionManager
 
 	// ~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param srv
-	 *
-	 *
-	 *
-	 * @return a value of <code>Queue<Packet></code>
-	 */
+	protected static void setupSidlogger( Level lvl ) {
+		if ( !Level.OFF.equals( lvl ) ){
+			Filter bslf = new BoshSidLoggerFilter();
+
+			Logger BoshConnectionManagerLogger = Logger.getLogger(BoshConnectionManager.class.getName());
+			Logger BoshSessionLogger = Logger.getLogger(BoshSession.class.getName());
+
+			if (BoshConnectionManagerLogger.getLevel() == null || BoshSessionLogger.getLevel() == null
+					|| BoshConnectionManagerLogger.getLevel().intValue() < lvl.intValue()) {
+				BoshConnectionManagerLogger.setLevel( lvl );
+				BoshConnectionManagerLogger.setFilter( bslf );
+				BoshSessionLogger.setLevel( lvl );
+				BoshSessionLogger.setFilter( bslf );
+
+				BoshConnectionManagerLogger.getParent().setFilter( bslf );
+			}
+
+			try {
+				if ( null == sidFilehandler ){
+					sidFilehandler = new FileHandler( "logs/bosh_sid.log", 10000000, 5, false );
+					sidFilehandler.setLevel( lvl );
+					sidFilehandler.setFilter( bslf );
+					BoshConnectionManagerLogger.getParent().addHandler( sidFilehandler );
+				}
+			} catch ( IOException ex ) {
+				log.log( Level.CONFIG, "Error creating BOSH SID logger" + ex );
+			}
+		}
+	}
+
+	@Override
+	protected void setupWatchdogThread() {
+		// having watchdog for bosh connections is not needed
+	}
+
+	protected Map<String,String> preBindSession(Map<String,String> attr) {
+		String hostname = attr.get( TO_ATTR );
+
+		Queue<Packet> out_results = new ArrayDeque<Packet>( 2 );
+
+		BoshSession bs = new BoshSession( getDefVHostItem().getDomain(),
+				JID.jidInstanceNS( routings.computeRouting( hostname ) ), 
+				this, sendNodeHostname ? getDefHostName().getDomain() : null,
+				maxSessionWaitingPackets);
+
+		String jid = attr.get( FROM_ATTR );
+		String uuid = UUID.randomUUID().toString();
+		JID userId = JID.jidInstanceNS( jid );
+		if ( null == userId.getResource() ){
+			userId = userId.copyWithResourceNS( uuid );
+			attr.put( FROM_ATTR, userId.toString() );
+			bs.setUserJid( jid );
+		}
+		long rid = (long) (Math.random() * 10000000);
+
+		attr.put( RID_ATTR, Long.toString( rid ) );
+
+		UUID sid = bs.getSid();
+		sessions.put( sid, bs );
+		if ( log.isLoggable( Level.FINE ) ){
+			log.log( Level.FINE, "{0} : {1} ({2})",
+										 new Object[] { BOSH_OPERATION_TYPE.CREATE, bs.getSid(),
+																		"Pre-bind" } );
+		}
+
+		attr.put( SID_ATTR, sid.toString() );
+
+		Packet p = null;
+		try {
+			Element el = new Element( "body" );
+			el.setAttributes( attr );
+			p = Packet.packetInstance( el );
+		} catch ( TigaseStringprepException ex ) {
+			Logger.getLogger( BoshConnectionManager.class.getName() ).log( Level.SEVERE, null, ex );
+		}
+		bs.init( p, null, max_wait, min_polling, max_inactivity,
+						 concurrent_requests, hold_requests, max_pause, max_batch_size,
+						 batch_queue_timeout, out_results, true );
+		addOutPackets( out_results, bs );
+
+		attr.put( "hostname", getDefHostName().toString() );
+
+		return attr;
+	}
+
 	@Override
 	public Queue<Packet> processSocketData(XMPPIOService<Object> srv) {
 		BoshIOService serv = (BoshIOService) srv;
@@ -220,22 +290,45 @@ public class BoshConnectionManager
 					String hostname = p.getAttributeStaticStr(Packet.TO_ATT);
 
 					if ((hostname != null) && isLocalDomain(hostname)) {
-						bs = new BoshSession(getDefVHostItem().getDomain(), JID.jidInstanceNS(routings
-								.computeRouting(hostname)), this);
-						sid = bs.getSid();
-						sessions.put(sid, bs);
+						if (!isAllowed(srv, hostname)) {
+							if (log.isLoggable(Level.FINE)) {
+								log.log(Level.FINE, "Policy violation. Closing connection: {0}", p);
+							}
+							try {
+								serv.sendErrorAndStop(Authorization.NOT_ALLOWED, p, "Policy violation.");
+							} catch (IOException e) {
+								log.log(Level.WARNING,
+										"Problem sending invalid hostname error for sid =  " + sid, e);
+							}
+						}
+						else {
+							bs = new BoshSession(getDefVHostItem().getDomain(), JID.jidInstanceNS(routings
+								.computeRouting(hostname)), this, sendNodeHostname ? getDefHostName().getDomain() : null,
+								maxSessionWaitingPackets);
+							sid = bs.getSid();
+							sessions.put(sid, bs);
+
+							if ( log.isLoggable( Level.FINE ) ){
+								log.log( Level.FINE, "{0} : {1} ({2})",
+															 new Object[] { BOSH_OPERATION_TYPE.CREATE, sid, "Socket bosh session" } );
+							}
+						}
 					} else {
-						log.log(Level.INFO, "Invalid hostname. Closing invalid connection: {0}", p);
 						try {
 							serv.sendErrorAndStop(Authorization.NOT_ALLOWED, p, "Invalid hostname.");
-						} catch (Exception e) {
+						} catch (IOException e) {
 							log.log(Level.WARNING,
 									"Problem sending invalid hostname error for sid =  " + sid, e);
 						}
 					}
 				} else {
-					sid = UUID.fromString(sid_str);
-					bs  = sessions.get(sid);
+					try {
+						sid = UUID.fromString( sid_str );
+						bs = sessions.get( sid );
+					} catch ( IllegalArgumentException e ) {
+						log.log(Level.WARNING, "Problem processing socket data, sid =  " + sid_str
+																	 + " does not conform to the UUID string representation.", e);
+					}
 				}
 			}
 			try {
@@ -250,11 +343,14 @@ public class BoshConnectionManager
 						}
 					}
 				} else {
-					log.info("There is no session with given SID. Closing invalid connection");
+					if ( log.isLoggable( Level.FINE ) ){
+						log.log( Level.FINE, "{0} : {1} ({2})",
+													 new Object[] { BOSH_OPERATION_TYPE.INVALID_SID, sid_str, "Invalid SID" } );
+					}
 					serv.sendErrorAndStop(Authorization.ITEM_NOT_FOUND, p, "Invalid SID");
 				}
 				addOutPackets(out_results, bs);
-			} catch (Exception e) {
+			} catch (IOException e) {
 				log.log(Level.WARNING, "Problem processing socket data for sid =  " + sid_str, e);
 			}
 
@@ -264,17 +360,6 @@ public class BoshConnectionManager
 		return null;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param bs
-	 * @param delay
-	 *
-	 *
-	 *
-	 * @return a value of <code>BoshSendQueueTask</code>
-	 */
 	@Override
 	public BoshSendQueueTask scheduleSendQueueTask(final BoshSession bs, long delay) {
 		BoshSendQueueTask bt = new BoshSendQueueTask(bs);
@@ -285,17 +370,6 @@ public class BoshConnectionManager
 		return bt;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param bs
-	 * @param delay
-	 *
-	 *
-	 *
-	 * @return a value of <code>BoshTask</code>
-	 */
 	@Override
 	public BoshTask scheduleTask(BoshSession bs, long delay) {
 		BoshTask bt = new BoshTask(bs, this);
@@ -306,24 +380,15 @@ public class BoshConnectionManager
 		return bt;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param service
-	 */
-	public void serviceStarted(BoshIOService service) {
+	@Override
+	public void serviceStarted(XMPPIOService<Object> service) {
 		super.serviceStarted(service);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param service
-	 */
-	public void serviceStopped(BoshIOService service) {
-		super.serviceStopped(service);
+	@Override
+	public boolean serviceStopped(XMPPIOService<Object> xmppService) {
+		BoshIOService service = (BoshIOService) xmppService;
+		boolean result = super.serviceStopped(service);
 
 		UUID sid = service.getSid();
 
@@ -331,49 +396,34 @@ public class BoshConnectionManager
 			BoshSession bs = sessions.get(sid);
 
 			if (bs != null) {
+				if ( log.isLoggable( Level.FINE ) ){
+					log.log( Level.FINE, "{0} : {1} ({2})",
+												 new Object[] { BOSH_OPERATION_TYPE.REMOVE, bs.getSid(),
+																				"Closing bosh session" } );
+				}
+
 				bs.disconnected(service);
 			}
 		}
+		return result;
 	}
 
 	// ~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param ios
-	 * @param data
-	 */
 	@Override
 	public void writeRawData(BoshIOService ios, String data) {
 		super.writeRawData(ios, data);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param serv
-	 */
-	public void xmppStreamClosed(BoshIOService serv) {
+	@Override
+	public void xmppStreamClosed(XMPPIOService<Object>  serv) {
 		if (log.isLoggable(Level.FINER)) {
 			log.finer("Stream closed.");
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param serv
-	 * @param attribs
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 */
-	public String xmppStreamOpened(BoshIOService serv, Map<String, String> attribs) {
+	@Override
+	public String xmppStreamOpened(XMPPIOService<Object> serv, Map<String, String> attribs) {
 		if (log.isLoggable(Level.FINE)) {
 			log.fine(
 					"Ups, what just happened? Stream open. Hey, this is a Bosh connection manager." +
@@ -392,16 +442,6 @@ public class BoshConnectionManager
 
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param params
-	 *
-	 *
-	 *
-	 * @return a value of <code>Map<String,Object></code>
-	 */
 	@Override
 	public Map<String, Object> getDefaults(Map<String, Object> params) {
 		Map<String, Object> props = super.getDefaults(params);
@@ -414,47 +454,35 @@ public class BoshConnectionManager
 		props.put(MAX_PAUSE_PROP_KEY, MAX_PAUSE_PROP_VAL);
 		props.put(MAX_BATCH_SIZE_KEY, MAX_BATCH_SIZE_VAL);
 		props.put(BATCH_QUEUE_TIMEOUT_KEY, BATCH_QUEUE_TIMEOUT_VAL);
+		props.put(MAX_SESSION_WAITING_PACKETS_KEY, MAX_SESSION_WAITING_PACKETS_VAL);
+		props.put(SEND_NODE_HOSTNAME_KEY, SEND_NODE_HOSTNAME_VAL );
+		props.put(SID_LOGGER_KEY, SID_LOGGER_VAL);
 
 		return props;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 */
 	@Override
 	public String getDiscoCategoryType() {
 		return "c2s";
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 */
 	@Override
 	public String getDiscoDescription() {
 		return "Bosh connection manager";
 	}
 
 	/**
-	 * Method description
-	 *
-	 *
-	 * @param fromJID
-	 * @param ph
-	 *
-	 *
-	 *
-	 * @return a value of <code>BareJID</code>
+	 * Returns full jid of passed BoshSession instance
+	 * 
+	 * @param bs {@link BoshSession} for which JID should be retrieved
+	 * 
+	 * @return JID address related to particular {@link BoshSession}
 	 */
+	@Override
+	public JID getJidForBoshSession(BoshSession bs) {
+		return getFromAddress(bs.getSid().toString());
+	}
+	
 	@Override
 	public BareJID getSeeOtherHostForJID(BareJID fromJID, Phase ph) {
 		if (see_other_host_strategy == null) {
@@ -487,12 +515,6 @@ public class BoshConnectionManager
 				: null;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param list
-	 */
 	@Override
 	public void getStatistics(StatisticsList list) {
 		super.getStatistics(list);
@@ -505,16 +527,8 @@ public class BoshConnectionManager
 
 	//~--- set methods ----------------------------------------------------------
 
-	// ~--- set methods ----------------------------------------------------------
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param props
-	 */
 	@Override
-	public void setProperties(Map<String, Object> props) {
+	public void setProperties(Map<String, Object> props) throws ConfigurationException {
 		super.setProperties(props);
 		if (props.get(MAX_WAIT_DEF_PROP_KEY) != null) {
 			max_wait = (Long) props.get(MAX_WAIT_DEF_PROP_KEY);
@@ -548,16 +562,28 @@ public class BoshConnectionManager
 			batch_queue_timeout = (Long) props.get(BATCH_QUEUE_TIMEOUT_KEY);
 			log.info("Setting batch_queue_timeout to: " + batch_queue_timeout);
 		}
+		if (props.get(MAX_SESSION_WAITING_PACKETS_KEY) != null) {
+			maxSessionWaitingPackets = (Integer) props.get(MAX_SESSION_WAITING_PACKETS_KEY);
+			log.info("Setting max session waiting packets to: " + maxSessionWaitingPackets);
+		}
+		if (props.get(SEND_NODE_HOSTNAME_KEY) != null) {
+			sendNodeHostname = (Boolean) props.get(SEND_NODE_HOSTNAME_KEY);
+		}
+		if (props.size() == 1 && props.get(SID_LOGGER_KEY) != null) {
+			Level lvl = Level.parse( (String)props.get(SID_LOGGER_KEY) );
+			setupSidlogger( lvl );
+			log.info("Setting SID log level to: " + lvl);
+		}
 	}
 
 	//~--- methods --------------------------------------------------------------
 
 	/**
-	 * Method description
+	 * Method adds packets to the output queue stamping it with the appropriate
+	 * {@link BoshSession} data
 	 *
-	 *
-	 * @param out_results
-	 * @param bs
+	 * @param out_results collection of {@link Packet} objects to be added to queue
+	 * @param bs related {@link BoshSession}
 	 */
 	protected void addOutPackets(Queue<Packet> out_results, BoshSession bs) {
 		for (Packet res : out_results) {
@@ -581,19 +607,6 @@ public class BoshConnectionManager
 		out_results.clear();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param newAddress
-	 * @param command_sessionId
-	 * @param serv
-	 *
-	 *
-	 *
-	 * @return a value of <code>JID</code>
-	 */
 	@Override
 	protected JID changeDataReceiver(Packet packet, JID newAddress,
 			String command_sessionId, XMPPIOService<Object> serv) {
@@ -616,25 +629,11 @@ public class BoshConnectionManager
 		return null;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>ReceiverTimeoutHandler</code>
-	 */
 	@Override
 	protected ReceiverTimeoutHandler newStartedHandler() {
 		return new StartedHandler();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 */
 	@Override
 	protected void processCommand(Packet packet) {
 		BoshSession session = getBoshSession(packet.getTo());
@@ -658,6 +657,11 @@ public class BoshConnectionManager
 							writePacketToSocket(redirectPacket);
 							session.sendWaitingPackets();
 							session.close();
+							if ( log.isLoggable( Level.FINE ) ){
+								log.log( Level.FINE, "{0} : {1} ({2})",
+															 new Object[] { BOSH_OPERATION_TYPE.REMOVE, session.getSid(),
+																							"See other host" } );
+							}
 							sessions.remove(session.getSid());
 						} else {
 							session.setUserJid(jid);
@@ -713,6 +717,11 @@ public class BoshConnectionManager
 					}
 				}
 				session.close();
+				if ( log.isLoggable( Level.FINE ) ){
+					log.log( Level.FINE, "{0} : {1} ({2})",
+									 new Object[] { BOSH_OPERATION_TYPE.REMOVE, session.getSid(),
+																	"Closing session for command CLOSE" } );
+				}
 				sessions.remove(session.getSid());
 			} else {
 				if (log.isLoggable(Level.FINE)) {
@@ -750,16 +759,6 @@ public class BoshConnectionManager
 		}    // end of switch (pc.getCommand())
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 *
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
 	@Override
 	protected boolean writePacketToSocket(Packet packet) {
 		BoshSession session = getBoshSession(packet.getTo());
@@ -782,27 +781,12 @@ public class BoshConnectionManager
 
 	//~--- get methods ----------------------------------------------------------
 
-	// ~--- get methods ----------------------------------------------------------
-	// public void processPacket(Packet packet) {
-	// log.finer("Processing packet: " + packet.getElemName()
-	// + ", type: " + packet.getType());
-	// log.finest("Processing packet: " + packet.toString());
-	// if (packet.isCommand() && packet.getCommand() != Command.OTHER) {
-	// processCommand(packet);
-	// } else {
-	// writePacketToSocket(packet);
-	// }
-	// }
-
 	/**
-	 * Method description
+	 * Method retrieves {@link BoshSession} related to the particular user address
 	 *
+	 * @param jid address for which {@link BoshSession} should be returned
 	 *
-	 * @param jid
-	 *
-	 *
-	 *
-	 * @return a value of <code>BoshSession</code>
+	 * @return a value of {@link BoshSession}
 	 */
 	protected BoshSession getBoshSession(JID jid) {
 		String res = jid.getResource();
@@ -816,27 +800,11 @@ public class BoshConnectionManager
 		return null;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>int[]</code>
-	 */
 	@Override
 	protected int[] getDefPlainPorts() {
 		return PORTS;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>int[]</code>
-	 */
 	@Override
 	protected int[] getDefSSLPorts() {
 		return null;
@@ -852,16 +820,14 @@ public class BoshConnectionManager
 	@Override
 	protected long getMaxInactiveTime() {
 		return 10 * MINUTE;
+
+	}
+	@Override
+	public void initBindings(Bindings binds) {
+		super.initBindings(binds);
+		binds.put("boshCM", this);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>BoshIOService</code>
-	 */
 	@Override
 	protected BoshIOService getXMPPIOServiceInstance() {
 		return new BoshIOService();
@@ -877,27 +843,36 @@ public class BoshConnectionManager
 	// ~--- inner classes --------------------------------------------------------
 	private class StartedHandler
 					implements ReceiverTimeoutHandler {
-		/**
-		 * Method description
-		 *
-		 *
-		 * @param packet
-		 * @param response
-		 */
 		@Override
-		public void responseReceived(Packet packet, Packet response) {
+		public void responseReceived( Packet packet, Packet response ) {
+			String pb = Command.getFieldValue( packet, PRE_BIND_ATTR );
+			boolean prebind = Boolean.valueOf( pb );
 
-			// We are now ready to ask for features....
-			addOutPacket(Command.GETFEATURES.getPacket(packet.getFrom(), packet.getTo(),
-					StanzaType.get, UUID.randomUUID().toString(), null));
+			String sessionId = Command.getFieldValue( packet, SESSION_ID_ATTR );
+			String userID = Command.getFieldValue( packet, USER_ID_ATTR );
+
+			if ( prebind ){
+				// we are doing pre-bind, send user-login command, bind resource
+				Packet packetOut
+							 = Command.USER_STATUS.getPacket( packet.getFrom(), packet.getTo(),
+																								StanzaType.get, UUID.randomUUID().toString() );
+
+//				Element presence = new Element( "presence" );
+				Command.addFieldValue( packetOut, USER_ID_ATTR, userID );
+				if ( null != sessionId ){
+					Command.addFieldValue( packetOut, SESSION_ID_ATTR, sessionId );
+				}
+				Command.addFieldValue( packetOut, PRE_BIND_ATTR, String.valueOf( prebind ) );
+
+				addOutPacket( packetOut );
+			} else {
+
+				// We are now ready to ask for features....
+				addOutPacket( Command.GETFEATURES.getPacket( packet.getFrom(), packet.getTo(),
+																										 StanzaType.get, UUID.randomUUID().toString(), null ) );
+			}
 		}
 
-		/**
-		 * Method description
-		 *
-		 *
-		 * @param packet
-		 */
 		@Override
 		public void timeOutExpired(Packet packet) {
 
@@ -909,22 +884,18 @@ public class BoshConnectionManager
 
 			BoshSession session = getBoshSession(packet.getFrom());
 
-			if (session != null) {
-				log.fine("Closing session for timeout: " + session.getSid());
+			if ( session != null ){
+				log.fine( "Closing session for timeout: " + session.getSid() );
 				session.close();
-				sessions.remove(session.getSid());
+				if ( log.isLoggable( Level.FINE ) ){
+					log.log( Level.FINE, "{0} : {1} ({2})",
+									 new Object[] { BOSH_OPERATION_TYPE.REMOVE, session.getSid(),
+																	"Closing session for timeout" } );
+				}
+				sessions.remove( session.getSid() );
 			} else {
 				log.info("Session does not exist for packet: " + packet.toString());
 			}
 		}
 	}
 }
-
-
-
-// ~ Formatted in Sun Code Convention
-
-// ~ Formatted by Jindent --- http://www.jindent.com
-
-
-//~ Formatted in Tigase Code Convention on 13/10/15

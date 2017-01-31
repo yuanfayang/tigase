@@ -26,7 +26,17 @@ package tigase.xmpp.impl;
 
 //~--- non-JDK imports --------------------------------------------------------
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import tigase.db.NonAuthUserRepository;
+import tigase.db.TigaseDBException;
 
 import tigase.server.Packet;
 
@@ -36,21 +46,16 @@ import tigase.xmpp.Authorization;
 import tigase.xmpp.BareJID;
 import tigase.xmpp.JID;
 import tigase.xmpp.NotAuthorizedException;
+import tigase.xmpp.PacketErrorTypeException;
+import tigase.xmpp.StanzaType;
 import tigase.xmpp.XMPPException;
-import tigase.xmpp.XMPPProcessor;
+import tigase.xmpp.XMPPPacketFilterIfc;
+import tigase.xmpp.XMPPPreprocessorIfc;
 import tigase.xmpp.XMPPProcessorIfc;
 import tigase.xmpp.XMPPResourceConnection;
+import tigase.xmpp.impl.annotation.*;
 
-//~--- JDK imports ------------------------------------------------------------
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.Map;
-import java.util.Queue;
-import tigase.db.TigaseDBException;
-import tigase.xmpp.StanzaType;
+import static tigase.xmpp.impl.Message.*;
 
 /**
  * Message forwarder class. Forwards <code>Message</code> packet to it's destination
@@ -61,57 +66,38 @@ import tigase.xmpp.StanzaType;
  * @author <a href="mailto:artur.hefczyc@tigase.org">Artur Hefczyc</a>
  * @version $Rev$
  */
+@Id(ELEM_NAME)
+@Handles({
+	@Handle(path={ ELEM_NAME },xmlns=XMLNS)
+})
 public class Message
-				extends XMPPProcessor
-				implements XMPPProcessorIfc {
-	
-	private static final String     ELEM_NAME = tigase.server.Message.ELEM_NAME;
-	private static final String[][] ELEMENTS  = {
-		{ ELEM_NAME }
-	};
-	private static final String     ID        = ELEM_NAME;
+				extends AnnotatedXMPPProcessor
+				implements XMPPProcessorIfc, XMPPPreprocessorIfc, XMPPPacketFilterIfc {
+
+	protected static final String     ELEM_NAME = tigase.server.Message.ELEM_NAME;
 
 	/** Class logger */
 	private static final Logger   log    = Logger.getLogger(Message.class.getName());
 	private static final String   DELIVERY_RULES_KEY = "delivery-rules";
-	private static final String   XMLNS  = "jabber:client";
-	private static final String[] XMLNSS = { XMLNS };
+	protected static final String   XMLNS  = "jabber:client";
 
 	private MessageDeliveryRules deliveryRules = MessageDeliveryRules.inteligent;
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Returns plugin unique identifier.
-	 *
-	 *
-	 * @return pugin unique identifier.
-	 */
-	@Override
-	public String id() {
-		return ID;
-	}
-
 	@Override
 	public void init(Map<String, Object> settings) throws TigaseDBException {
 		super.init(settings);
-		
-		deliveryRules = settings.containsKey(DELIVERY_RULES_KEY) 
+
+		deliveryRules = settings.containsKey(DELIVERY_RULES_KEY)
 				? MessageDeliveryRules.valueOf((String) settings.get(DELIVERY_RULES_KEY))
 				: MessageDeliveryRules.inteligent;
 	}
-	
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param session
-	 * @param repo
-	 * @param results
-	 * @param settings
-	 *
-	 * @throws XMPPException
-	 */
+
+	@Override
+	public void filter(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results) {
+		C2SDeliveryErrorProcessor.filter(packet, session, repo, results, null);
+	}
+
 	@Override
 	public void process(Packet packet, XMPPResourceConnection session,
 			NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings)
@@ -127,42 +113,7 @@ public class Message
 
 		// You may want to skip processing completely if the user is offline.
 		if (session == null) {
-			if (packet.getStanzaTo() != null && packet.getStanzaTo().getResource() != null) {
-				if (deliveryRules != MessageDeliveryRules.strict) {
-					StanzaType type = packet.getType();
-					if (type == null) {
-						type = StanzaType.normal;
-					}
-					switch (type) {
-						case chat:
-							// try to deliver this message to all available resources so we should
-							// treat it as a stanza with bare "to" attribute
-							Packet result = packet.copyElementOnly();
-							result.initVars(packet.getStanzaFrom(), 
-									packet.getStanzaTo().copyWithoutResource());
-							results.offer(result);							
-							break;
-							
-						case error:
-							// for error packet we should ignore stanza according to RFC 6121
-							break;
-							
-						case headline:
-						case groupchat:
-						case normal:
-						default:
-							// for each of this types RFC 6121 recomends silent ignoring of stanza
-							// or to return error recipient-unavailable - we will send error as
-							// droping packet without response may not be a good idea
-							results.offer(Authorization.RECIPIENT_UNAVAILABLE.getResponseMessage(
-									packet, "The recipient is no longer available.", true));
-					}
-				}
-				else {
-					results.offer(Authorization.RECIPIENT_UNAVAILABLE.getResponseMessage(packet, 
-							"The recipient is no longer available.", true));
-				}
-			}
+			processOfflineUser( packet, results );
 			return;
 		}    // end of if (session == null)
 		try {
@@ -179,13 +130,13 @@ public class Message
 							new Object[] { packet,
 							session });
 				}
-				
+
 				if (packet.getStanzaFrom() != null && session.isUserId(packet.getStanzaFrom().getBareJID())) {
 					JID connectionId = session.getConnectionId();
 					if (connectionId.equals(packet.getPacketFrom())) {
 						results.offer(packet.copyElementOnly());
 						// this would cause message packet to be stored in offline storage and will not
-						// send recipient-unavailable error but it will behave the same as a message to 
+						// send recipient-unavailable error but it will behave the same as a message to
 						// unavailable resources from other sessions or servers
 						return;
 					}
@@ -204,7 +155,7 @@ public class Message
 
 					// If the message is sent to BareJID then the message is delivered to
 					// all resources
-					conns.addAll(session.getActiveSessions());
+					conns.addAll(getConnectionsForMessageDelivery(session));
 				} else {
 
 					// Otherwise only to the given resource or sent back as error.
@@ -218,7 +169,7 @@ public class Message
 
 				// MessageCarbons: message cloned to all resources? why? it should be copied only
 				// to resources with non negative priority!!
-				
+
 				if (conns.size() > 0) {
 					for (XMPPResourceConnection con : conns) {
 						Packet result = packet.copyElementOnly();
@@ -239,15 +190,10 @@ public class Message
 						}
 					}
 				} else {
-					Packet result = Authorization.RECIPIENT_UNAVAILABLE.getResponseMessage(packet,
-							"The recipient is no longer available.", true);
-
-					result.setPacketFrom(null);
-					result.setPacketTo(null);
-
-					// Don't forget to add the packet to the results queue or it
-					// will be lost.
-					results.offer(result);
+					// if there are no user connections we should process packet
+					// the same as with missing session (i.e. should be stored if
+					// has type 'chat'
+					processOfflineUser( packet, results );
 				}
 
 				return;
@@ -297,39 +243,116 @@ public class Message
 				results.offer(result);
 			}
 		} catch (NotAuthorizedException e) {
-			log.warning("NotAuthorizedException for packet: " + packet);
+			log.log(Level.FINE, "NotAuthorizedException for packet: " + packet + " for session: " + session, e);
 			results.offer(Authorization.NOT_AUTHORIZED.getResponseMessage(packet,
 					"You must authorize session first.", true));
 		}    // end of try-catch
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
-	@Override
-	public String[][] supElementNamePaths() {
-		return ELEMENTS;
+	private void processOfflineUser( Packet packet, Queue<Packet> results ) throws PacketErrorTypeException {
+		if (packet.getStanzaTo() != null && packet.getStanzaTo().getResource() != null) {
+			if (deliveryRules != MessageDeliveryRules.strict) {
+				StanzaType type = packet.getType();
+				if (type == null) {
+					type = StanzaType.normal;
+				}
+				switch (type) {
+					case chat:
+						// try to deliver this message to all available resources so we should
+						// treat it as a stanza with bare "to" attribute
+						Packet result = packet.copyElementOnly();
+						result.initVars(packet.getStanzaFrom(),
+															packet.getStanzaTo().copyWithoutResource());
+						results.offer(result);
+						break;
+
+					case error:
+						// for error packet we should ignore stanza according to RFC 6121
+						break;
+
+					case headline:
+					case groupchat:
+					case normal:
+					default:
+						// for each of this types RFC 6121 recomends silent ignoring of stanza
+						// or to return error recipient-unavailable - we will send error as
+						// droping packet without response may not be a good idea
+						results.offer(Authorization.RECIPIENT_UNAVAILABLE.getResponseMessage(
+								packet, "The recipient is no longer available.", true));
+				}
+			}
+			else {
+				results.offer(Authorization.RECIPIENT_UNAVAILABLE.getResponseMessage(packet,
+																																							 "The recipient is no longer available.", true));
+			}
+		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
-	public String[] supNamespaces() {
-		return XMLNSS;
+	public boolean preProcess(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) {
+		boolean result = C2SDeliveryErrorProcessor.preProcess(packet, session, repo, results, settings);
+		if (result) {
+			packet.processedBy(id());
+		}
+		return result;
 	}
-	
+
 	private static enum MessageDeliveryRules {
 		strict,
 		inteligent
 	}
+
+	/**
+	 * Method returns list of XMPPResourceConnections to which message should be delivered for 
+	 * session passes as parameter if message was sent to bare JID
+	 * 
+	 * @param session
+	 * @return
+	 * @throws NotAuthorizedException 
+	 */
+	public List<XMPPResourceConnection> getConnectionsForMessageDelivery(XMPPResourceConnection session) throws NotAuthorizedException {
+		List<XMPPResourceConnection> conns = new ArrayList<XMPPResourceConnection>();
+		for (XMPPResourceConnection conn : session.getActiveSessions()) {
+			if (conn.getPresence() != null &&  conn.getPriority() >= 0)
+				conns.add(conn);
+		}
+		return conns;
+	}
+
+	/**
+	 * Method returns list of JIDs to which message should be delivered for 
+	 * session passes as parameter if message was sent to bare JID
+	 * 
+	 * @param session
+	 * @return
+	 * @throws NotAuthorizedException 
+	 */
+	public Set<JID> getJIDsForMessageDelivery(XMPPResourceConnection session) throws NotAuthorizedException {
+		Set<JID> jids = new HashSet<JID>();
+		for (XMPPResourceConnection conn : session.getActiveSessions()) {
+			if (conn.getPresence() != null &&  conn.getPriority() >= 0)
+				jids.add(conn.getJID());
+		}
+		return jids;
+	}	
+	
+	/**
+	 * Method returns true if there is at least one XMPPResourceConnection which is allowed to 
+	 * receive message for XMPPResourceConnection
+	 * 
+	 * @param session
+	 * @return 
+	 */
+	public boolean hasConnectionForMessageDelivery(XMPPResourceConnection session) {
+		try {
+			for (XMPPResourceConnection conn : session.getActiveSessions()) {
+				if (conn.getPresence() != null && conn.getPriority() >= 0)
+					return true;
+			}
+		} catch (NotAuthorizedException ex) {
+			// should not happen, end even if it happend then we should return false
+		}
+		return false;
+	}
 }    // Message
 
-
-//~ Formatted in Tigase Code Convention on 13/03/12

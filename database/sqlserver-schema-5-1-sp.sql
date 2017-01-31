@@ -18,6 +18,11 @@
 -- Database stored procedures and functions for Tigase schema version 5.2.0
 
 -- QUERY START:
+SET QUOTED_IDENTIFIER ON
+-- QUERY END:
+GO
+
+-- QUERY START:
 IF EXISTS (SELECT * FROM sys.objects WHERE type = 'P' AND name = 'TigInitdb')
 DROP PROCEDURE TigInitdb
 -- QUERY END:
@@ -255,6 +260,8 @@ create procedure dbo.TigAddUser
 	@_user_pw nvarchar(255)
 AS
 	begin
+		SET NOCOUNT ON;
+		
 		declare @res_uid bigint;
 
 		insert into dbo.tig_users (user_id, sha1_user_id, user_pw)
@@ -585,6 +592,8 @@ create procedure dbo.TigAddNode
 @_node nvarchar(255)
 AS
 begin
+	SET NOCOUNT ON;
+	
 	insert into dbo.tig_nodes (parent_nid, uid, node)
 		values (@_parent_nid, @_uid, @_node);
 	select SCOPE_IDENTITY() as nid;

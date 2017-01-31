@@ -67,6 +67,11 @@ public class PacketChecker extends S2SAbstractProcessor {
         
         //~--- methods --------------------------------------------------------------
 
+		@Override
+		public int order() {
+			return 0;
+		}
+		
         @Override
         public void init(S2SConnectionHandlerIfc<S2SIOService> handler, Map<String, Object> props) {
                 super.init(handler, props);
@@ -98,16 +103,6 @@ public class PacketChecker extends S2SAbstractProcessor {
                 }
         }
         
-        /**
-         * Method description
-         *
-         *
-         * @param p
-         * @param serv
-         * @param results
-         *
-         * 
-         */
         @Override
         public boolean process(Packet p, S2SIOService serv, Queue<Packet> results) {
                 if ((p.getXMLNS() == XMLNS_SERVER_VAL) || (p.getXMLNS() == XMLNS_CLIENT_VAL)) {

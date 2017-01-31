@@ -32,12 +32,13 @@ import tigase.server.ServerComponent;
  * @version $Rev$
  */
 public interface ClusteredComponentIfc extends ServerComponent {
-
+	
 	/**
 	 * Set's the configures the cluster controller object for cluster
 	 * communication and API.
 	 *
-	 * @param cl_controller
+	 * @param cl_controller cluster controller object used for cluster
+	 *                      communication
 	 */
 	void setClusterController(ClusterControllerIfc cl_controller);
 

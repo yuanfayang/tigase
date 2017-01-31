@@ -252,9 +252,25 @@ public class XMPPIOService<RefObject>
 	}
 
 	/**
-	 * Method description
-	 *
+	 * Clears queue of packets waiting to send.
+	 * In case of connection close this packets may be sent to offline store 
+	 * but some processors may want stop this from happening - for that they 
+	 * may use this method
 	 */
+	public void clearWaitingPackets() {
+		this.waitingPackets.clear();
+	}
+	
+	/**
+	 * Returns queue with packets waiting to send. For use by ConnectionManager
+	 * which may need to get undelivered packets 
+	 * 
+	 * @return 
+	 */
+	public Queue<Packet> getWaitingPackets() {
+		return waitingPackets;
+	}
+	
 	@Override
 	public void forceStop() {
 		boolean stop = false;
@@ -269,18 +285,16 @@ public class XMPPIOService<RefObject>
 		}
 	}
 
-	/**
-	 * Describe <code>processWaitingPackets</code> method here.
-	 *
-	 * @throws IOException
-	 */
+
 	@Override
 	public void processWaitingPackets() throws IOException {
 		Packet packet = null;
 
 		// int cnt = 0;
 		// while ((packet = waitingPackets.poll()) != null && (cnt < 1000)) {
-		while ((packet = waitingPackets.poll()) != null) {
+		
+		// we should only peek for packet now, and poll it after sending it
+		while ((packet = waitingPackets.peek()) != null) {
 
 			// ++cnt;
 			if (log.isLoggable(Level.FINEST)) {
@@ -288,6 +302,10 @@ public class XMPPIOService<RefObject>
 						packet });
 			}
 			writeRawData(packet.getElement().toString());
+			
+			// and after sending it we should remove it to minimalize chances of lost packets
+			waitingPackets.poll();
+			
 			if (log.isLoggable(Level.FINEST)) {
 				log.log(Level.FINEST, "{0}, SENT: {1}", new Object[] { toString(),
 						packet.getElement().toString() });
@@ -302,10 +320,6 @@ public class XMPPIOService<RefObject>
 		}
 	}
 
-	/**
-	 * Describe <code>stop</code> method here.
-	 *
-	 */
 	@Override
 	public void stop() {
 
@@ -316,14 +330,6 @@ public class XMPPIOService<RefObject>
 		super.stop();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 */
 	@Override
 	public String toString() {
 		return super.toString() + ", jid: " + jid;
@@ -430,7 +436,7 @@ public class XMPPIOService<RefObject>
 	 *
 	 *
 	 *
-	 * @return a value of <code>Queue<Packet></code>
+	 * @return a value of {@code Queue<Packet>}
 	 */
 	public Queue<Packet> getReceivedPackets() {
 		return receivedPackets;
@@ -476,7 +482,7 @@ public class XMPPIOService<RefObject>
 	 *
 	 *
 	 *
-	 * @return a value of <code>Map<String,Packet></code>
+	 * @return a value of {@code Map<String,Packet>}
 	 */
 	public Map<String, Packet> getWaitingForAct() {
 		for (Packet p : waitingForAck.values()) {
@@ -626,12 +632,10 @@ public class XMPPIOService<RefObject>
 		}
 	}
 
-	/**
-	 * Describe <code>processSocketData</code> method here.
-	 *
-	 * @exception IOException
-	 *              if an error occurs
-	 */
+	protected String prepareStreamClose() {
+		return "</stream:stream>";
+	}	
+	
 	@Override
 	protected void processSocketData() throws IOException {
 
@@ -723,7 +727,10 @@ public class XMPPIOService<RefObject>
 					log.log(Level.INFO, toString() + ", Incorrect XML data: " + new String(data) +
 							", stopping connection: " + getConnectionId() + ", exception: ", ex);
 					forceStop();
-				}    // end of try-catch
+				} finally {
+					if (domHandler.isStreamClosed())
+						xmppStreamClosed();
+				}  // end of try-catch
 				data = readData();
 			}
 		} else {
@@ -740,14 +747,6 @@ public class XMPPIOService<RefObject>
 		// }
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>int</code>
-	 */
 	@Override
 	protected int receivedPackets() {
 		return receivedPackets.size();
@@ -762,20 +761,28 @@ public class XMPPIOService<RefObject>
 		if (log.isLoggable(Level.FINEST)) {
 			log.log(Level.FINEST, "{0}, Received STREAM-CLOSE from the client", toString());
 		}
-		try {
-			if (log.isLoggable(Level.FINEST)) {
-				log.log(Level.FINEST, "{0}, Sending data: </stream:stream>", toString());
-			}
-			writeRawData("</stream:stream>");
-		} catch (IOException e) {
-			log.log(Level.INFO, "{0}, Error sending stream closed data: {1}", new Object[] {
-					toString(),
-					e });
-		}
+
 		if (processors != null) {
 			for (XMPPIOProcessor processor : processors) {
 				processor.serviceStopped(this, true);
 			}
+		}
+		
+		try {
+			if (isConnected()) {
+				if (log.isLoggable(Level.FINEST)) {
+					log.log(Level.FINEST, "{0}, Sending data: </stream:stream>, as socket is still connected", toString());
+				}
+				writeRawData(prepareStreamClose());
+			} else {
+				if (log.isLoggable(Level.FINEST)) {
+					log.log(Level.FINEST, "{0}, Not sending data: </stream:stream>, as socket is alreadt closed", toString());
+				}				
+			}
+		} catch (IOException e) {
+			log.log(Level.INFO, "{0}, Error sending stream closed data: {1}", new Object[] {
+					toString(),
+					e });
 		}
 
 		// streamClosed = true;

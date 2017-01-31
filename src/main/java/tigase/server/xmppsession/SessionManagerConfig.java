@@ -99,6 +99,9 @@ public abstract class SessionManagerConfig {
 	/** Field description */
 	protected static final String SM_THREADS_POOL_PROP_VAL = "default";
 
+	protected static final String AUTH_TIMEOUT_PROP_KEY = "auth-timeout";
+	protected static final long AUTH_TIMEOUT_PROP_VAL = 120;
+
 	/** Field description */
 	protected static final String STALE_CONNECTION_CLOSER_QUEUE_SIZE_KEY =
 			"stale-connection-closer-queue-size";
@@ -221,6 +224,7 @@ public abstract class SessionManagerConfig {
 		String plugin_concurrency = "";
 
 		if (str_plugins != null) {
+			str_plugins = str_plugins.replaceAll("\\s+","");
 			String[] conf_plugins = str_plugins.split(",");
 
 			for (String plugin : conf_plugins) {

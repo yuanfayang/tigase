@@ -4,22 +4,22 @@ import java.util.Hashtable;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import javax.naming.Context;
 import javax.naming.directory.DirContext;
 import javax.naming.directory.InitialDirContext;
 import javax.security.sasl.SaslException;
 import javax.security.sasl.SaslServer;
-
 import tigase.db.AuthRepository;
 import tigase.db.AuthorizationException;
 import tigase.db.DBInitException;
+import tigase.db.Repository;
 import tigase.db.TigaseDBException;
 import tigase.db.UserExistsException;
 import tigase.db.UserNotFoundException;
 import tigase.util.Base64;
 import tigase.xmpp.BareJID;
 
+@Repository.Meta( supportedUris = { "ldaps?:.*" } )
 public class LdapAuthProvider implements AuthRepository {
 
 	private class SaslPLAINLdap implements SaslServer {
@@ -286,6 +286,11 @@ public class LdapAuthProvider implements AuthRepository {
 
 	@Override
 	public void updatePassword(BareJID user, String password) throws UserNotFoundException, TigaseDBException {
+		throw new TigaseDBException("Not available");
+	}
+
+	@Override
+	public String getPassword(BareJID user) throws UserNotFoundException, TigaseDBException {
 		throw new TigaseDBException("Not available");
 	}
 

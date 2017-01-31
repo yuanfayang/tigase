@@ -37,6 +37,21 @@
 			<directory>../../docs</directory>
 			<outputDirectory>docs</outputDirectory>
 			<includes>
+				<include>Administration_Guide/html_chunk/**/*</include>
+				<include>Administration_Guide/pdf/**/*</include>
+				<include>Development_Guide/html_chunk/**/*</include>
+				<include>Development_Guide/pdf/**/*</include>
+				<include>Properties_Guide/html_chunk/**/*</include>
+				<include>Properties_Guide/pdf/**/*</include>
+				<include>User_Guide/html_chunk/**/*</include>
+				<include>User_Guide/pdf/**/*</include>
+				<include>javadoc/**/*</include>
+			</includes>
+		</fileSet>
+		<fileSet>
+			<directory>../../win-stuff</directory>
+			<outputDirectory>win-stuff</outputDirectory>
+			<includes>
 				<include>*/**</include>
 			</includes>
 		</fileSet>
@@ -95,8 +110,9 @@
 			<includes>
 				<!--tigase libraries-->
 				<include>tigase:tigase-server</include>
-				<!--<include>tigase:tigase-utils</include>-->
-				<!--<include>tigase:tigase-xmltools</include>-->
+				<include>tigase:tigase-http-api</include>
+				<include>tigase.sure.web:tigase-web-ui</include>
+				<include>javax.servlet:javax.servlet-api</include>
 
 				<!--database libraries-->
 				<include>org.apache.derby:derby</include>

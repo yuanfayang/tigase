@@ -38,6 +38,7 @@ import tigase.xml.Element;
 
 import tigase.xmpp.Authorization;
 import tigase.xmpp.JID;
+import tigase.xmpp.NotAuthorizedException;
 import tigase.xmpp.PacketErrorTypeException;
 import tigase.xmpp.XMPPProcessorAbstract;
 import tigase.xmpp.XMPPResourceConnection;
@@ -47,6 +48,7 @@ import tigase.xmpp.XMPPResourceConnection;
 import java.util.logging.Logger;
 import java.util.Map;
 import java.util.Queue;
+import java.util.logging.Level;
 
 /**
  * Implementation of JEP-030.
@@ -55,7 +57,6 @@ import java.util.Queue;
  * Created: Mon Mar 27 20:45:36 2006
  *
  * @author <a href="mailto:artur.hefczyc@tigase.org">Artur Hefczyc</a>
- * @version $Rev$
  */
 public class ServiceDiscovery
 				extends XMPPProcessorAbstract {
@@ -74,30 +75,11 @@ public class ServiceDiscovery
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String id() {
 		return ID;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param connectionId
-	 * @param packet
-	 * @param session
-	 * @param repo
-	 * @param results
-	 * @param settings
-	 *
-	 * @throws PacketErrorTypeException
-	 */
 	@Override
 	public void processFromUserToServerPacket(JID connectionId, Packet packet,
 			XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results,
@@ -105,20 +87,12 @@ public class ServiceDiscovery
 					throws PacketErrorTypeException {
 
 		// Handled elsewhere (in MessageRouter)
-		results.offer(packet.copyElementOnly());
+		if ( packet.getStanzaTo() != null ){
+			log.log( Level.FINEST, "forwarding packet to MR" + packet.toString() );
+			results.offer( packet.copyElementOnly() );
+		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param repo
-	 * @param results
-	 * @param settings
-	 *
-	 * @throws PacketErrorTypeException
-	 */
 	@Override
 	public void processNullSessionPacket(Packet packet, NonAuthUserRepository repo,
 			Queue<Packet> results, Map<String, Object> settings)
@@ -127,18 +101,6 @@ public class ServiceDiscovery
 				"The target is unavailable at this time.", true));
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param session
-	 * @param repo
-	 * @param results
-	 * @param settings
-	 *
-	 * @throws PacketErrorTypeException
-	 */
 	@Override
 	public void processServerSessionPacket(Packet packet, XMPPResourceConnection session,
 			NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings)
@@ -147,41 +109,18 @@ public class ServiceDiscovery
 		// Handled elsewhere (in MessageRouter)
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param session
-	 *
-	 * 
-	 */
 	@Override
 	public Element[] supDiscoFeatures(final XMPPResourceConnection session) {
 		return DISCO_FEATURES;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String[][] supElementNamePaths() {
 		return ELEMENTS;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String[] supNamespaces() {
 		return XMLNSS;
 	}
 }    // ServiceDiscovery
-
-
-//~ Formatted in Tigase Code Convention on 13/03/12

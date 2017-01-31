@@ -19,24 +19,20 @@
  * If not, see http://www.gnu.org/licenses/.
  *
  */
-
-
-
 package tigase.xmpp.impl;
 
-//~--- non-JDK imports --------------------------------------------------------
+import java.util.Map;
+import java.util.Queue;
+import java.util.logging.Logger;
 
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.db.UserNotFoundException;
-
 import tigase.server.Iq;
 import tigase.server.Message;
 import tigase.server.Packet;
 import tigase.server.Presence;
-
 import tigase.xml.Element;
-
 import tigase.xmpp.Authorization;
 import tigase.xmpp.BareJID;
 import tigase.xmpp.JID;
@@ -47,13 +43,7 @@ import tigase.xmpp.XMPPException;
 import tigase.xmpp.XMPPProcessorAbstract;
 import tigase.xmpp.XMPPResourceConnection;
 import tigase.xmpp.XMPPStopListenerIfc;
-
-//~--- JDK imports ------------------------------------------------------------
-
 import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.Map;
-import java.util.Queue;
 
 /**
  * Implementation of <a
@@ -62,25 +52,22 @@ import java.util.Queue;
  * @author bmalkow
  *
  */
-public abstract class LastActivity
-				extends XMPPProcessorAbstract
-				implements XMPPStopListenerIfc {
-	private final static String     LAST_ACTIVITY_KEY = "LAST_ACTIVITY_KEY";
-	private static final String     XMLNS             = "jabber:iq:last";
-	private static final Logger     log = Logger.getLogger(LastActivity.class.getName());
-	private final static String     ID                = XMLNS;
-	private static final String[][] ELEMENTS          = {
-		Iq.IQ_QUERY_PATH, { Presence.ELEM_NAME }, { Message.ELEM_NAME }
-	};
-	private static final Element[]  DISCO_FEATURES = { new Element("feature",
-			new String[] { "var" }, new String[] { XMLNS }) };
-	private final static String[] XMLNSS = new String[] { XMLNS, "jabber:client",
-			"jabber:client" };
+public class LastActivity extends XMPPProcessorAbstract implements XMPPStopListenerIfc {
+	private static final String XMLNS = "jabber:iq:last";
+	private final static String[] XMLNSS = new String[] { XMLNS, "jabber:client", "jabber:client" };
+	private static final Element[] DISCO_FEATURES = { new Element("feature", new String[] { "var" }, new String[] { XMLNS }) };
+	private static final String[][] ELEMENTS = { Iq.IQ_QUERY_PATH, { Presence.ELEM_NAME }, { Message.ELEM_NAME } };
+	private final static String ID = XMLNS;
+	private final static String LAST_ACTIVITY_KEY = "LAST_ACTIVITY_KEY";
+	private final static String LAST_STATUS_KEY = "LAST_STATUS_KEY";
+	private static final Logger log = Logger.getLogger(LastActivity.class.getName());
+	private final static String[] STATUS_PATH = new String[] { "presence", "status" };
 
-	//~--- get methods ----------------------------------------------------------
+	private static String getStatus(NonAuthUserRepository repo, BareJID requestedJid) throws UserNotFoundException {
+		return repo.getPublicData(requestedJid, ID, LAST_STATUS_KEY, null);
+	}
 
-	private static long getTime(NonAuthUserRepository repo, BareJID requestedJid)
-					throws UserNotFoundException {
+	private static long getTime(NonAuthUserRepository repo, BareJID requestedJid) throws UserNotFoundException {
 		String data = repo.getPublicData(requestedJid, ID, LAST_ACTIVITY_KEY, null);
 
 		if (data == null) {
@@ -96,274 +83,151 @@ public abstract class LastActivity
 	private static long getTime(XMPPResourceConnection session) {
 		final Long last = (Long) session.getSessionData(LAST_ACTIVITY_KEY);
 
-		return (last == null)
-				? -1
-				: last.longValue();
+		return (last == null) ? -1 : last.longValue();
 	}
 
-	//~--- methods --------------------------------------------------------------
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String id() {
 		return ID;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param session
-	 * @param repo
-	 * @param results
-	 * @param settings
-	 *
-	 * @throws XMPPException
-	 */
 	@Override
-	public void process(Packet packet, XMPPResourceConnection session,
-			NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings)
-					throws XMPPException {
-		if ((packet.getElemName() != "iq") && (session != null) && session.getBareJID()
-				.equals(packet.getStanzaFrom().getBareJID())) {
+	public void process(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results,
+			Map<String, Object> settings) throws XMPPException {
+		if ((packet.getElemName() != "iq") && (session != null)
+				&& session.getBareJID().equals(packet.getStanzaFrom().getBareJID())) {
 			final long time = System.currentTimeMillis();
 
 			if (log.isLoggable(Level.FINEST)) {
-				log.finest("Updating last:activity of user " + session.getUserName() + " to " +
-						time);
+				log.finest("Updating last:activity of user " + session.getUserName() + " to " + time);
 			}
 			session.putSessionData(LAST_ACTIVITY_KEY, time);
+		} else {
+			if (packet.getElemName() == "iq")
+				super.process(packet, session, repo, results, settings);
 		}
-		super.process(packet, session, repo, results, settings);
 	}
 
-	/*
-	 * User odpytuje sam siebie
-	 */
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param connectionId
-	 * @param packet
-	 * @param session
-	 * @param repo
-	 * @param results
-	 * @param settings
-	 *
-	 * @throws PacketErrorTypeException
-	 */
 	@Override
-	public void processFromUserToServerPacket(JID connectionId, Packet packet,
-			XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results,
-			Map<String, Object> settings)
-					throws PacketErrorTypeException {
+	public void processFromUserToServerPacket(JID connectionId, Packet packet, XMPPResourceConnection session,
+			NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) throws PacketErrorTypeException {
+
 		if (packet.getType() == StanzaType.get) {
-			long   last = getTime(session);
-			Packet resp = packet.okResult((Element) null, 0);
+			long last = getTime(session);
 
 			if (last != -1) {
-				long    result = (System.currentTimeMillis() - last) / 1000;
-				Element q = new Element("query", new String[] { "xmlns", "seconds" },
-						new String[] { "jabber:iq:last",
+				Packet resp = packet.okResult((Element) null, 0);
+				long result = (System.currentTimeMillis() - last) / 1000;
+				Element q = new Element("query", new String[] { "xmlns", "seconds" }, new String[] { "jabber:iq:last",
 						"" + result });
 
 				resp.getElement().addChild(q);
 				results.offer(resp);
 			} else {
-				results.offer(Authorization.ITEM_NOT_FOUND.getResponseMessage(packet,
-						"Unknown last activity time", true));
+				results.offer(Authorization.ITEM_NOT_FOUND.getResponseMessage(packet, "Unknown last activity time", true));
 			}
 		} else {
-			results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet,
-					"Message type is incorrect", true));
+			results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet, "Message type is incorrect", true));
 		}
 	}
 
-	/*
-	 * User docelowy jest offline
-	 */
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param repo
-	 * @param results
-	 * @param settings
-	 *
-	 * @throws PacketErrorTypeException
-	 */
 	@Override
-	public void processNullSessionPacket(Packet packet, NonAuthUserRepository repo,
-			Queue<Packet> results, Map<String, Object> settings)
-					throws PacketErrorTypeException {
+	public void processNullSessionPacket(Packet packet, NonAuthUserRepository repo, Queue<Packet> results,
+			Map<String, Object> settings) throws PacketErrorTypeException {
+
 		if (packet.getType() == StanzaType.get) {
 			try {
-				BareJID    requestedJid = packet.getStanzaTo().getBareJID();
-				final long last         = getTime(repo, requestedJid);
+				BareJID requestedJid = packet.getStanzaTo().getBareJID();
+				final long last = getTime(repo, requestedJid);
+				final String status = getStatus(repo, requestedJid);
 
 				if (log.isLoggable(Level.FINEST)) {
-					log.finest("Get last:activity of offline user " + requestedJid + ". value=" +
-							last);
+					log.finest("Get last:activity of offline user " + requestedJid + ". value=" + last + ", status=" + status);
 				}
 				if (last != -1) {
-					long    result = (System.currentTimeMillis() - last) / 1000;
-					Packet  resp   = packet.okResult((Element) null, 0);
-					Element q = new Element("query", new String[] { "xmlns", "seconds" },
-							new String[] { "jabber:iq:last",
-							"" + result });
+					long result = (System.currentTimeMillis() - last) / 1000;
+					Packet resp = packet.okResult((Element) null, 0);
+					Element q = new Element("query", status, new String[] { "xmlns", "seconds" }, new String[] {
+							"jabber:iq:last", "" + result });
 
 					resp.getElement().addChild(q);
 					results.offer(resp);
 				} else {
-					results.offer(Authorization.ITEM_NOT_FOUND.getResponseMessage(packet,
-							"Unknown last activity time", true));
+					results.offer(Authorization.ITEM_NOT_FOUND.getResponseMessage(packet, "Unknown last activity time", true));
 				}
 			} catch (UserNotFoundException e) {
-				results.offer(Authorization.ITEM_NOT_FOUND.getResponseMessage(packet,
-						"User not found", true));
+				results.offer(Authorization.ITEM_NOT_FOUND.getResponseMessage(packet, "User not found", true));
 			}
 		} else if (packet.getType() == StanzaType.set) {
-			results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet,
-					"Message type is incorrect", true));
+			results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet, "Message type is incorrect", true));
 		} else {
 			super.processNullSessionPacket(packet, repo, results, settings);
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param session
-	 * @param repo
-	 * @param results
-	 * @param settings
-	 *
-	 * @throws PacketErrorTypeException
-	 */
 	@Override
-	public void processServerSessionPacket(Packet packet, XMPPResourceConnection session,
-			NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings)
-					throws PacketErrorTypeException {}
+	public void processServerSessionPacket(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo,
+			Queue<Packet> results, Map<String, Object> settings) throws PacketErrorTypeException {
+	}
 
-	/*
-	 * User docelowy jest podłączony
-	 */
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param session
-	 * @param repo
-	 * @param results
-	 * @param settings
-	 *
-	 * @throws PacketErrorTypeException
-	 */
 	@Override
-	public void processToUserPacket(Packet packet, XMPPResourceConnection session,
-			NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings)
-					throws PacketErrorTypeException {
+	public void processToUserPacket(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo,
+			Queue<Packet> results, Map<String, Object> settings) throws PacketErrorTypeException {
+
 		if (packet.getType() == StanzaType.get) {
 			long last = getTime(session);
 
 			if (last != -1) {
-				long    result = (System.currentTimeMillis() - last) / 1000;
-				Packet  resp   = packet.okResult((Element) null, 0);
-				Element q = new Element("query", new String[] { "xmlns", "seconds" },
-						new String[] { "jabber:iq:last",
+				long result = (System.currentTimeMillis() - last) / 1000;
+				Packet resp = packet.okResult((Element) null, 0);
+				Element q = new Element("query", new String[] { "xmlns", "seconds" }, new String[] { "jabber:iq:last",
 						"" + result });
 
 				resp.getElement().addChild(q);
 				results.offer(resp);
 			} else {
-				results.offer(Authorization.ITEM_NOT_FOUND.getResponseMessage(packet,
-						"Unknown last activity time", true));
+				results.offer(Authorization.ITEM_NOT_FOUND.getResponseMessage(packet, "Unknown last activity time", true));
 			}
 		} else if (packet.getType() == StanzaType.set) {
-			results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet,
-					"Message type is incorrect", true));
+			results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet, "Message type is incorrect", true));
 		} else {
 			super.processToUserPacket(packet, session, repo, results, settings);
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param session
-	 * @param results
-	 * @param settings
-	 */
 	@Override
-	public void stopped(XMPPResourceConnection session, Queue<Packet> results, Map<String,
-			Object> settings) {
+	public void stopped(XMPPResourceConnection session, Queue<Packet> results, Map<String, Object> settings) {
+
 		if (session != null) {
 			long last = getTime(session);
 
 			try {
 				if (log.isLoggable(Level.FINEST)) {
-					log.finest("Persiting last:activity of user " + session.getUserName() +
-							" in storage (value=" + last + ").");
+					log.finest("Persiting last:activity of user " + session.getUserName() + " in storage (value=" + last + ").");
 				}
 				session.setPublicData(ID, LAST_ACTIVITY_KEY, String.valueOf(last));
+				String status = session.getPresence().getChildCDataStaticStr(STATUS_PATH);
+				session.setPublicData(ID, LAST_STATUS_KEY, status);
 			} catch (NotAuthorizedException e) {
-				e.printStackTrace();
+				log.finest("session isn't authorized" + session);
 			} catch (TigaseDBException e) {
-				e.printStackTrace();
+				log.warning("Tigase Db Exception");
 			}
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param session
-	 *
-	 * 
-	 */
 	@Override
 	public Element[] supDiscoFeatures(XMPPResourceConnection session) {
 		return DISCO_FEATURES;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String[][] supElementNamePaths() {
 		return ELEMENTS;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String[] supNamespaces() {
 		return XMLNSS;
 	}
 }
-
-
-//~ Formatted in Tigase Code Convention on 13/03/12

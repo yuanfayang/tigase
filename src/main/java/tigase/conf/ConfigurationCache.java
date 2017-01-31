@@ -45,6 +45,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.Map;
 import java.util.Set;
+import tigase.db.DBInitException;
 
 /**
  * Created: Dec 10, 2009 2:02:41 PM
@@ -83,24 +84,12 @@ public class ConfigurationCache
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param repoChangeListener
-	 */
 	@Override
 	public void addRepoChangeListener(
 					RepositoryChangeListenerIfc<ConfigItem> repoChangeListener) {
 		this.repoChangeList = repoChangeListener;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param repoChangeListener
-	 */
 	@Override
 	public void removeRepoChangeListener(
 					RepositoryChangeListenerIfc<ConfigItem> repoChangeListener) {
@@ -134,28 +123,16 @@ public class ConfigurationCache
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param item
-	 *
-	 * @throws TigaseDBException
-	 */
 	@Override
-	public void addItem(ConfigItem item) throws TigaseDBException {
+	public void addItemNoStore(ConfigItem item) {
 		addItem(item.getCompName(), item);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param key
-	 * @param value
-	 *
-	 * @throws ConfigurationException
-	 */
+	@Override
+	public void addItem(ConfigItem item) throws TigaseDBException {
+		addItemNoStore(item);
+	}
+
 	@Override
 	public void addItem(String key, Object value) throws ConfigurationException {
 		int idx1 = key.indexOf("/");
@@ -180,14 +157,6 @@ public class ConfigurationCache
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 *
-	 * @throws TigaseDBException
-	 */
 	@Override
 	public Collection<ConfigItem> allItems() throws TigaseDBException {
 		List<ConfigItem> result = new ArrayList<ConfigItem>();
@@ -199,32 +168,22 @@ public class ConfigurationCache
 		return result;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param key
-	 *
-	 * 
-	 */
 	@Override
 	public boolean contains(String key) {
 		return getItem(key) != null;
 	}
 
+	@Override
+	public void destroy() {
+		// Nothing to do now, maybe later we would add some logic here to move 
+		// deinitialization of config repository here - added to implement all methods
+		// needed by ComponentRepository interface which was extended while
+		// implementing support for autodiscovery based on URI and adding
+		// more flexibility in use of repositories
+	}
+	
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param compName
-	 * @param node
-	 * @param key
-	 * @param def
-	 *
-	 * 
-	 */
 	@Override
 	public Object get(String compName, String node, String key, Object def) {
 		ConfigItem item = getItem(compName, node, key);
@@ -236,12 +195,6 @@ public class ConfigurationCache
 		return def;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String[] getCompNames() {
 		return config.keySet().toArray(new String[config.size()]);
@@ -251,30 +204,17 @@ public class ConfigurationCache
 	 * Method description
 	 *
 	 *
-	 * 
+	 *
 	 */
 	public String getDefHostname() {
 		return this.hostname;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param defs
-	 * @param params
-	 */
 	@Override
 	public void getDefaults(Map<String, Object> defs, Map<String, Object> params) {
 		defs.put(CONFIG_DUMP_FILE_PROP_KEY, CONFIG_DUMP_FILE_PROP_DEF);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public Map<String, Object> getInitProperties() {
 		return null;
@@ -288,7 +228,7 @@ public class ConfigurationCache
 	 * @param node
 	 * @param key
 	 *
-	 * 
+	 *
 	 */
 	public ConfigItem getItem(String compName, String node, String key) {
 		Set<ConfigItem> confItems = getItemsForComponent(compName);
@@ -304,14 +244,6 @@ public class ConfigurationCache
 		return null;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param key
-	 *
-	 * 
-	 */
 	@Override
 	public ConfigItem getItem(String key) {
 		int idx1 = key.indexOf("/");
@@ -333,39 +265,16 @@ public class ConfigurationCache
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public ConfigItem getItemInstance() {
 		return new ConfigItem();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param compName
-	 *
-	 * 
-	 */
 	@Override
 	public Set<ConfigItem> getItemsForComponent(String compName) {
 		return config.get(compName);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param compName
-	 * @param node
-	 *
-	 * 
-	 */
 	@Override
 	public String[] getKeys(String compName, String node) {
 		Set<String> keysForNode   = new LinkedHashSet<String>();
@@ -383,16 +292,6 @@ public class ConfigurationCache
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param compName
-	 *
-	 * 
-	 *
-	 * @throws ConfigurationException
-	 */
 	@Override
 	public Map<String, Object> getProperties(String compName)
 					throws ConfigurationException {
@@ -420,23 +319,11 @@ public class ConfigurationCache
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param params
-	 *
-	 * @throws ConfigurationException
-	 */
 	@Override
-	public void init(Map<String, Object> params) throws ConfigurationException {}
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
+	public void initRepository(String resource_uri, Map<String, String> params) throws DBInitException {
+		// Nothing to do..
+	}	
+	
 	@Override
 	public Iterator<ConfigItem> iterator() {
 		try {
@@ -452,15 +339,6 @@ public class ConfigurationCache
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param compName
-	 * @param props
-	 *
-	 * @throws ConfigurationException
-	 */
 	@Override
 	public void putProperties(String compName, Map<String, Object> props)
 					throws ConfigurationException {
@@ -472,26 +350,12 @@ public class ConfigurationCache
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @throws TigaseDBException
-	 */
 	@Override
 	public void reload() throws TigaseDBException {
 
 		// Do nothing, this is in memory config repository only
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param compName
-	 * @param node
-	 * @param key
-	 */
 	@Override
 	public void remove(String compName, String node, String key) {
 		ConfigItem item = getItem(compName, node, key);
@@ -519,14 +383,6 @@ public class ConfigurationCache
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param key
-	 *
-	 * @throws TigaseDBException
-	 */
 	@Override
 	public void removeItem(String key) throws TigaseDBException {
 		ConfigItem item = getItem(key);
@@ -538,15 +394,6 @@ public class ConfigurationCache
 
 	//~--- set methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param compName
-	 * @param node
-	 * @param key
-	 * @param value
-	 */
 	@Override
 	public void set(String compName, String node, String key, Object value) {
 		ConfigItem item = getItem(compName, node, key);
@@ -558,23 +405,11 @@ public class ConfigurationCache
 		addItem(compName, item);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param hostname
-	 */
 	@Override
 	public void setDefHostname(String hostname) {
 		this.hostname = hostname;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param properties
-	 */
 	@Override
 	public void setProperties(Map<String, Object> properties) {
 		configDumpFileName = (String) properties.get(CONFIG_DUMP_FILE_PROP_KEY);
@@ -582,12 +417,6 @@ public class ConfigurationCache
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public int size() {
 		int result = 0;
@@ -599,12 +428,6 @@ public class ConfigurationCache
 		return result;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @throws TigaseDBException
-	 */
 	@Override
 	public void store() throws TigaseDBException {
 		if (!isOff(configDumpFileName)) {
@@ -638,14 +461,6 @@ public class ConfigurationCache
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param item
-	 *
-	 * 
-	 */
 	@Override
 	public String validateItem(ConfigItem item) {
 		return null;
@@ -653,12 +468,6 @@ public class ConfigurationCache
 
 	//~--- set methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param delay
-	 */
 	@Override
 	public void setAutoloadTimer(long delay) {}
 }

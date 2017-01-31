@@ -74,41 +74,42 @@ import javax.security.sasl.SaslServer;
  * The user authentication connector allows for customized SQL queries to be
  * used. Queries are defined in the configuration file and they can be either
  * plain SQL queries or stored procedures.
- * 
+ *
  * If the query starts with characters: <code>{ call</code> then the server
  * assumes this is a stored procedure call, otherwise it is executed as a plain
  * SQL query. Each configuration value is stripped from white characters on both
  * ends before processing.
- * 
+ *
  * Please don't use semicolon <code>';'</code> at the end of the query as many
  * JDBC drivers get confused and the query may not work for unknown obvious
  * reason.
- * 
+ *
  * Some queries take arguments. Arguments are marked by question marks
  * <code>'?'</code> in the query. Refer to the configuration parameters
  * description for more details about what parameters are expected in each
  * query.
- * 
+ *
  * Example configuration.
- * 
+ *
  * The first example shows how to put a stored procedure as a query with 2
  * required parameters.
- * 
+ *
  * <pre>
  * add-user-query={ call TigAddUserPlainPw(?, ?) }
  * </pre>
- * 
+ *
  * The same query with plain SQL parameters instead:
- * 
+ *
  * <pre>
  * add-user-query=insert into users (user_id, password) values (?, ?)
  * </pre>
- * 
+ *
  * Created: Sat Nov 11 22:22:04 2006
- * 
+ *
  * @author <a href="mailto:artur.hefczyc@tigase.org">Artur Hefczyc</a>
  * @version $Rev$
  */
+@Meta( isDefault=true, supportedUris = { "jdbc:[^:]+:.*" } )
 public class TigaseCustomAuth implements AuthRepository {
 
 	/**
@@ -118,11 +119,11 @@ public class TigaseCustomAuth implements AuthRepository {
 
 	/**
 	 * Query executing periodically to ensure active connection with the database.
-	 * 
+	 *
 	 * Takes no arguments.
-	 * 
+	 *
 	 * Example query:
-	 * 
+	 *
 	 * <pre>
 	 * select 1
 	 * </pre>
@@ -131,11 +132,11 @@ public class TigaseCustomAuth implements AuthRepository {
 
 	/**
 	 * Database initialization query which is run after the server is started.
-	 * 
+	 *
 	 * Takes no arguments.
-	 * 
+	 *
 	 * Example query:
-	 * 
+	 *
 	 * <pre>
 	 * update tig_users set online_status = 0
 	 * </pre>
@@ -144,11 +145,11 @@ public class TigaseCustomAuth implements AuthRepository {
 
 	/**
 	 * Query adding a new user to the database.
-	 * 
+	 *
 	 * Takes 2 arguments: <code>(user_id (JID), password)</code>
-	 * 
+	 *
 	 * Example query:
-	 * 
+	 *
 	 * <pre>
 	 * insert into tig_users (user_id, user_pw) values (?, ?)
 	 * </pre>
@@ -157,11 +158,11 @@ public class TigaseCustomAuth implements AuthRepository {
 
 	/**
 	 * Removes a user from the database.
-	 * 
+	 *
 	 * Takes 1 argument: <code>(user_id (JID))</code>
-	 * 
+	 *
 	 * Example query:
-	 * 
+	 *
 	 * <pre>
 	 * delete from tig_users where user_id = ?
 	 * </pre>
@@ -170,11 +171,11 @@ public class TigaseCustomAuth implements AuthRepository {
 
 	/**
 	 * Retrieves user password from the database for given user_id (JID).
-	 * 
+	 *
 	 * Takes 1 argument: <code>(user_id (JID))</code>
-	 * 
+	 *
 	 * Example query:
-	 * 
+	 *
 	 * <pre>
 	 * select user_pw from tig_users where user_id = ?
 	 * </pre>
@@ -183,11 +184,11 @@ public class TigaseCustomAuth implements AuthRepository {
 
 	/**
 	 * Updates (changes) password for a given user_id (JID).
-	 * 
+	 *
 	 * Takes 2 arguments: <code>(password, user_id (JID))</code>
-	 * 
+	 *
 	 * Example query:
-	 * 
+	 *
 	 * <pre>
 	 * update tig_users set user_pw = ? where user_id = ?
 	 * </pre>
@@ -199,19 +200,19 @@ public class TigaseCustomAuth implements AuthRepository {
 	 * purpose. This is an alternative way to a method requiring retrieving user
 	 * password. Therefore at least one of those queries must be defined:
 	 * <code>user-login-query</code> or <code>get-password-query</code>.
-	 * 
+	 *
 	 * If both queries are defined then <code>user-login-query</code> is used.
 	 * Normally this method should be only used with plain text password
 	 * authentication or sasl-plain.
-	 * 
+	 *
 	 * The Tigase server expects a result set with user_id to be returned from the
 	 * query if login is successful and empty results set if the login is
 	 * unsuccessful.
-	 * 
+	 *
 	 * Takes 2 arguments: <code>(user_id (JID), password)</code>
-	 * 
+	 *
 	 * Example query:
-	 * 
+	 *
 	 * <pre>
 	 * select user_id from tig_users where (user_id = ?) AND (user_pw = ?)
 	 * </pre>
@@ -221,11 +222,11 @@ public class TigaseCustomAuth implements AuthRepository {
 	/**
 	 * This query is called when user logs out or disconnects. It can record that
 	 * event in the database.
-	 * 
+	 *
 	 * Takes 1 argument: <code>(user_id (JID))</code>
-	 * 
+	 *
 	 * Example query:
-	 * 
+	 *
 	 * <pre>
 	 * update tig_users, set online_status = online_status - 1 where user_id = ?
 	 * </pre>
@@ -251,13 +252,13 @@ public class TigaseCustomAuth implements AuthRepository {
 	 * Comma separated list of SASL authentication mechanisms. Possible mechanisms
 	 * are all mechanisms supported by Java implementation. The most common are:
 	 * <code>PLAIN</code>, <code>DIGEST-MD5</code>, <code>CRAM-MD5</code>.
-	 * 
+	 *
 	 * "Non-PLAIN" mechanisms will work only with the
 	 * <code>get-password-query</code> active and only when passwords are stored
 	 * in plain text format in the database.
 	 */
 	public static final String DEF_SASL_MECHS_KEY = "sasl-mechs";
-	
+
 	public static final String NO_QUERY = "none";
 
 	/** Field description */
@@ -321,18 +322,6 @@ public class TigaseCustomAuth implements AuthRepository {
 
 	// ~--- methods --------------------------------------------------------------
 
-	/**
-	 * Describe <code>addUser</code> method here.
-	 * 
-	 * @param user
-	 *          a <code>String</code> value
-	 * @param password
-	 *          a <code>String</code> value
-	 * @exception UserExistsException
-	 *              if an error occurs
-	 * @exception TigaseDBException
-	 *              if an error occurs
-	 */
 	@Override
 	public void addUser(BareJID user, final String password) throws UserExistsException,
 			TigaseDBException {
@@ -357,33 +346,20 @@ public class TigaseCustomAuth implements AuthRepository {
 			}
 		} catch (SQLIntegrityConstraintViolationException e) {
 			throw new UserExistsException(
-					"Error while adding user to repository, user exists?", e);
+					"Error while adding user to repository, user possibly exists: " + user, e);
 		} catch (SQLException e) {
-			throw new TigaseDBException("Problem accessing repository.", e);
+			if( e.getMessage() != null && e.getMessage().contains("Violation of UNIQUE KEY")) {
+				// This is a workaround SQL Server which just throws SLQ Exception
+				throw new UserExistsException(
+								"Error while adding user to repository, user possibly exists: " + user, e);
+			} else {
+			  throw new TigaseDBException("Problem accessing repository for user: " + user, e);
+			}
 		} finally {
 			data_repo.release(null, rs);
 		}
 	}
 
-	/**
-	 * Describe <code>digestAuth</code> method here.
-	 * 
-	 * @param user
-	 *          a <code>String</code> value
-	 * @param digest
-	 *          a <code>String</code> value
-	 * @param id
-	 *          a <code>String</code> value
-	 * @param alg
-	 *          a <code>String</code> value
-	 * @return a <code>boolean</code> value
-	 * @exception UserNotFoundException
-	 *              if an error occurs
-	 * @exception TigaseDBException
-	 *              if an error occurs
-	 * @exception AuthorizationException
-	 *              if an error occurs
-	 */
 	@Override
 	@Deprecated
 	public boolean digestAuth(BareJID user, final String digest, final String id,
@@ -411,12 +387,6 @@ public class TigaseCustomAuth implements AuthRepository {
 
 	// ~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * 
-	 */
 	@Override
 	public String getResourceUri() {
 		return data_repo.getResourceUri();
@@ -425,7 +395,7 @@ public class TigaseCustomAuth implements AuthRepository {
 	/**
 	 * <code>getUsersCount</code> method is thread safe. It uses local variable
 	 * for storing <code>Statement</code>.
-	 * 
+	 *
 	 * @return a <code>long</code> number of user accounts in database.
 	 */
 	@Override
@@ -463,14 +433,6 @@ public class TigaseCustomAuth implements AuthRepository {
 		}
 	}
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * @param domain
-	 * 
-	 * 
-	 */
 	@Override
 	public long getUsersCount(String domain) {
 		if (userdomaincount_query == null) {
@@ -509,15 +471,6 @@ public class TigaseCustomAuth implements AuthRepository {
 
 	// ~--- methods --------------------------------------------------------------
 
-	/**
-	 * Describe <code>initRepository</code> method here.
-	 * 
-	 * @param connection_str
-	 *          a <code>String</code> value
-	 * @param params
-	 * @exception DBInitException
-	 *              if an error occurs
-	 */
 	@Override
 	public void initRepository(final String connection_str, Map<String, String> params)
 			throws DBInitException {
@@ -541,7 +494,7 @@ public class TigaseCustomAuth implements AuthRepository {
 				data_repo.initPreparedStatement(deluser_query, deluser_query);
 			}
 
-			getpassword_query = getParamWithDef(params, DEF_GETPASSWORD_KEY, null);
+			getpassword_query = getParamWithDef(params, DEF_GETPASSWORD_KEY, DEF_GETPASSWORD_QUERY);
 
 			if ((getpassword_query != null)) {
 				data_repo.initPreparedStatement(getpassword_query, getpassword_query);
@@ -597,15 +550,6 @@ public class TigaseCustomAuth implements AuthRepository {
 		}
 	}
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * @param user
-	 * 
-	 * @throws TigaseDBException
-	 * @throws UserNotFoundException
-	 */
 	@Override
 	public void logout(BareJID user) throws UserNotFoundException, TigaseDBException {
 		if (userlogout_query == null) {
@@ -627,19 +571,6 @@ public class TigaseCustomAuth implements AuthRepository {
 		}
 	}
 
-	/**
-	 * Describe <code>otherAuth</code> method here.
-	 * 
-	 * @param props
-	 *          a <code>Map</code> value
-	 * @return a <code>boolean</code> value
-	 * @exception UserNotFoundException
-	 *              if an error occurs
-	 * @exception TigaseDBException
-	 *              if an error occurs
-	 * @exception AuthorizationException
-	 *              if an error occurs
-	 */
 	@Override
 	public boolean otherAuth(final Map<String, Object> props) throws UserNotFoundException,
 			TigaseDBException, AuthorizationException {
@@ -679,21 +610,6 @@ public class TigaseCustomAuth implements AuthRepository {
 		throw new AuthorizationException("Protocol is not supported.");
 	}
 
-	/**
-	 * Describe <code>plainAuth</code> method here.
-	 * 
-	 * @param user
-	 *          a <code>String</code> value
-	 * @param password
-	 *          a <code>String</code> value
-	 * @return a <code>boolean</code> value
-	 * 
-	 * @throws AuthorizationException
-	 * @exception UserNotFoundException
-	 *              if an error occurs
-	 * @exception TigaseDBException
-	 *              if an error occurs
-	 */
 	@Override
 	@Deprecated
 	public boolean plainAuth(BareJID user, final String password)
@@ -709,12 +625,6 @@ public class TigaseCustomAuth implements AuthRepository {
 
 	// Implementation of tigase.db.AuthRepository
 
-	/**
-	 * Describe <code>queryAuth</code> method here.
-	 * 
-	 * @param authProps
-	 *          a <code>Map</code> value
-	 */
 	@Override
 	public void queryAuth(final Map<String, Object> authProps) {
 		String protocol = (String) authProps.get(PROTOCOL_KEY);
@@ -728,16 +638,6 @@ public class TigaseCustomAuth implements AuthRepository {
 		} // end of if (protocol.equals(PROTOCOL_VAL_NONSASL))
 	}
 
-	/**
-	 * Describe <code>removeUser</code> method here.
-	 * 
-	 * @param user
-	 *          a <code>String</code> value
-	 * @exception UserNotFoundException
-	 *              if an error occurs
-	 * @exception TigaseDBException
-	 *              if an error occurs
-	 */
 	@Override
 	public void removeUser(BareJID user) throws UserNotFoundException, TigaseDBException {
 		if (deluser_query == null) {
@@ -756,17 +656,6 @@ public class TigaseCustomAuth implements AuthRepository {
 		}
 	}
 
-	/**
-	 * Describe <code>updatePassword</code> method here.
-	 * 
-	 * @param user
-	 *          a <code>String</code> value
-	 * @param password
-	 *          a <code>String</code> value
-	 * @exception TigaseDBException
-	 *              if an error occurs
-	 * @throws UserNotFoundException
-	 */
 	@Override
 	public void updatePassword(BareJID user, final String password)
 			throws UserNotFoundException, TigaseDBException {
@@ -817,8 +706,7 @@ public class TigaseCustomAuth implements AuthRepository {
 		return result;
 	}
 
-	private String getPassword(BareJID user) throws TigaseDBException,
-			UserNotFoundException {
+	public String getPassword(BareJID user) throws UserNotFoundException, TigaseDBException  {
 		if (getpassword_query == null) {
 			return null;
 		}
@@ -1022,16 +910,6 @@ public class TigaseCustomAuth implements AuthRepository {
 
 		// Implementation of javax.security.auth.callback.CallbackHandler
 
-		/**
-		 * Describe <code>handle</code> method here.
-		 * 
-		 * @param callbacks
-		 *          a <code>Callback[]</code> value
-		 * @exception IOException
-		 *              if an error occurs
-		 * @exception UnsupportedCallbackException
-		 *              if an error occurs
-		 */
 		@Override
 		public void handle(final Callback[] callbacks) throws IOException,
 				UnsupportedCallbackException {

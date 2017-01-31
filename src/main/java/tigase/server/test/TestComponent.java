@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.script.Bindings;
+import tigase.conf.ConfigurationException;
 
 /**
  * A test component used to demonstrate API and for running different kinds of
@@ -99,10 +100,6 @@ public class TestComponent
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 */
 	@Override
 	public synchronized void everyMinute() {
 		super.everyMinute();
@@ -117,14 +114,6 @@ public class TestComponent
 
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param params
-	 *
-	 * 
-	 */
 	@Override
 	public Map<String, Object> getDefaults(Map<String, Object> params) {
 		Map<String, Object> defs = super.getDefaults(params);
@@ -141,34 +130,16 @@ public class TestComponent
 		return defs;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String getDiscoCategoryType() {
 		return "spam";
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String getDiscoDescription() {
 		return "Spam filtering";
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param list
-	 */
 	@Override
 	public void getStatistics(StatisticsList list) {
 		super.getStatistics(list);
@@ -182,14 +153,6 @@ public class TestComponent
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 *
-	 * 
-	 */
 	@Override
 	public int hashCodeForPacket(Packet packet) {
 		if (packet.getStanzaTo() != null) {
@@ -209,12 +172,6 @@ public class TestComponent
 		return 1;
 	}
 
-	/**
-	 * Initialize a mapping of key/value pairs which can be used in scripts
-	 * loaded by the server
-	 *
-	 * @param binds A mapping of key/value pairs, all of whose keys are Strings.
-	 */
 	@Override
 	public void initBindings(Bindings binds) {
 		super.initBindings(binds);
@@ -222,12 +179,6 @@ public class TestComponent
 		binds.put(WHITE_LIST_VAR, whiteList);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 */
 	@Override
 	public void processPacket(Packet packet) {
 
@@ -268,23 +219,11 @@ public class TestComponent
 		addOutPacket(result);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public int processingInThreads() {
 		return Runtime.getRuntime().availableProcessors();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public int processingOutThreads() {
 		return Runtime.getRuntime().availableProcessors();
@@ -292,14 +231,8 @@ public class TestComponent
 
 	//~--- set methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param props
-	 */
 	@Override
-	public void setProperties(Map<String, Object> props) {
+	public void setProperties(Map<String, Object> props) throws ConfigurationException {
 		super.setProperties(props);
 		Collections.addAll(badWords, (String[]) props.get(BAD_WORDS_KEY));
 		Collections.addAll(whiteList, (String[]) props.get(WHITELIST_KEY));

@@ -26,55 +26,45 @@ package tigase.server;
 
 //~--- non-JDK imports --------------------------------------------------------
 
-import tigase.conf.Configurable;
-
-import tigase.disco.ServiceEntity;
-import tigase.disco.ServiceIdentity;
-import tigase.disco.XMPPService;
-
-import tigase.osgi.OSGiScriptEngineManager;
-
-import tigase.server.script.AddScriptCommand;
-import tigase.server.script.CommandIfc;
-import tigase.server.script.RemoveScriptCommand;
-
-import tigase.util.DNSResolver;
-import tigase.util.TigaseStringprepException;
-
-import tigase.vhosts.VHostItem;
-import tigase.vhosts.VHostListener;
-import tigase.vhosts.VHostManagerIfc;
-
-import tigase.xml.Element;
-
-import tigase.xmpp.Authorization;
-import tigase.xmpp.BareJID;
-import tigase.xmpp.JID;
-
-//~--- JDK imports ------------------------------------------------------------
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-
 import java.util.Arrays;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.script.Bindings;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
+import tigase.conf.Configurable;
+import tigase.conf.ConfigurationException;
+import tigase.disco.ServiceEntity;
+import tigase.disco.ServiceIdentity;
+import tigase.disco.XMPPService;
+import tigase.osgi.ModulesManagerImpl;
+import tigase.osgi.OSGiScriptEngineManager;
+import tigase.server.script.AddScriptCommand;
+import tigase.server.script.CommandIfc;
+import tigase.server.script.RemoveScriptCommand;
+import tigase.util.DNSResolver;
+import tigase.util.TigaseStringprepException;
+import tigase.vhosts.VHostItem;
+import tigase.vhosts.VHostListener;
+import tigase.vhosts.VHostManagerIfc;
+import tigase.xml.Element;
+import tigase.xmpp.Authorization;
+import tigase.xmpp.BareJID;
+import tigase.xmpp.JID;
 
 /**
  * Created: Oct 17, 2009 7:49:05 PM
@@ -96,9 +86,6 @@ public class BasicComponent
 	/** Field description */
 	public static final String SCRIPTS_DIR_PROP_KEY = "scripts-dir";
 
-	/**
-	 * Variable <code>log</code> is a class logger.
-	 */
 	private static final Logger log = Logger.getLogger(BasicComponent.class.getName());
 
 	//~--- fields ---------------------------------------------------------------
@@ -119,9 +106,6 @@ public class BasicComponent
 	private Map<String, EnumSet<CmdAcl>> commandsACL = new ConcurrentHashMap<String,
 			EnumSet<CmdAcl>>(20);
 
-	/**
-	 * List of the component administrators
-	 */
 	protected Set<BareJID>      admins = new ConcurrentSkipListSet<BareJID>();
 	private ScriptEngineManager scriptEngineManager     = null;
 	private String              scriptsBaseDir          = null;
@@ -221,40 +205,16 @@ public class BasicComponent
 		return false;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
 	@Override
 	public boolean handlesLocalDomains() {
 		return false;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
 	@Override
 	public boolean handlesNameSubdomains() {
 		return true;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
 	@Override
 	public boolean handlesNonLocalDomains() {
 		return false;
@@ -276,12 +236,9 @@ public class BasicComponent
 		binds.put(CommandIfc.SCRIPT_BASE_DIR, scriptsBaseDir);
 		binds.put(CommandIfc.SCRIPT_COMP_DIR, scriptsCompDir);
 		binds.put(CommandIfc.COMPONENT_NAME, getName());
+		binds.put(CommandIfc.COMPONENT, this);
 	}
 
-	/**
-	 * Method description
-	 *
-	 */
 	@Override
 	public void initializationCompleted() {
 		initializationCompleted = true;
@@ -293,13 +250,6 @@ public class BasicComponent
 //  Thread.dumpStack();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param results
-	 */
 	@Override
 	public void processPacket(Packet packet, Queue<Packet> results) {
 		if (packet.isCommand() && getName().equals(packet.getStanzaTo().getLocalpart()) &&
@@ -308,10 +258,6 @@ public class BasicComponent
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 */
 	@Override
 	public void release() {}
 
@@ -429,24 +375,11 @@ public class BasicComponent
 
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>JID</code>
-	 */
 	@Override
 	public JID getComponentId() {
 		return compId;
 	}
 
-	/**
-	 * Allows to obtain various informations about components
-	 *
-	 * @return information about particular component
-	 */
 	@Override
 	public ComponentInfo getComponentInfo() {
 		if (cmpInfo == null) {
@@ -456,16 +389,6 @@ public class BasicComponent
 		return cmpInfo;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param params
-	 *
-	 *
-	 *
-	 * @return a value of <code>Map<String,Object></code>
-	 */
 	@Override
 	public Map<String, Object> getDefaults(Map<String, Object> params) {
 		Map<String, Object> defs = new LinkedHashMap<String, Object>(50);
@@ -561,23 +484,13 @@ public class BasicComponent
 	 *
 	 *
 	 *
-	 * @return a value of <code>List<Element></code>
+	 * @return a value of {@code List<Element>}
 	 */
 	@Deprecated
 	public List<Element> getDiscoFeatures() {
 		return null;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param from
-	 *
-	 *
-	 *
-	 * @return a value of <code>List<Element></code>
-	 */
 	@Override
 	public List<Element> getDiscoFeatures(JID from) {
 		return getDiscoFeatures();
@@ -598,18 +511,6 @@ public class BasicComponent
 		return null;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param node
-	 * @param jid
-	 * @param from
-	 *
-	 *
-	 *
-	 * @return a value of <code>Element</code>
-	 */
 	@Override
 	public Element getDiscoInfo(String node, JID jid, JID from) {
 
@@ -639,25 +540,13 @@ public class BasicComponent
 	 *
 	 *
 	 *
-	 * @return a value of <code>List<Element></code>
+	 * @return a value of {@code List<Element>}
 	 */
 	@Deprecated
 	public List<Element> getDiscoItems(String node, JID jid) {
 		return null;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param node
-	 * @param jid
-	 * @param from
-	 *
-	 *
-	 *
-	 * @return a value of <code>List<Element></code>
-	 */
 	@Override
 	public List<Element> getDiscoItems(String node, JID jid, JID from) {
 
@@ -679,9 +568,13 @@ public class BasicComponent
 					result = new LinkedList<Element>();
 					for (CommandIfc comm : scriptCommands.values()) {
 						if (!comm.isAdminOnly() || isAdminFrom) {
-							result.add(new Element("item", new String[] { "node", "name", "jid" },
+							Element item = new Element("item", new String[] { "node", "name", "jid" },
 									new String[] { comm.getCommandId(),
-									comm.getDescription(), jid.toString() }));
+									comm.getDescription(), jid.toString() });
+							if (comm.getGroup() != null) {
+								item.setAttribute("group", comm.getGroup());
+							}
+							result.add(item);
 						}
 					}
 				} else {
@@ -751,14 +644,6 @@ public class BasicComponent
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 */
 	@Override
 	public String getName() {
 		return name;
@@ -774,7 +659,7 @@ public class BasicComponent
 	 *
 	 *
 	 *
-	 * @return a value of <code>List<Element></code>
+	 * @return a value of {@code List<Element>}
 	 */
 	public List<Element> getScriptItems(String node, JID jid, JID from) {
 		LinkedList<Element> result      = null;
@@ -825,14 +710,6 @@ public class BasicComponent
 		return admins.contains(jid.getBareJID());
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
 	@Override
 	public boolean isInitializationComplete() {
 		return initializationCompleted;
@@ -883,12 +760,6 @@ public class BasicComponent
 
 	//~--- set methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param name
-	 */
 	@Override
 	public void setName(String name) {
 		this.name = name;
@@ -899,14 +770,8 @@ public class BasicComponent
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param props
-	 */
 	@Override
-	public void setProperties(Map<String, Object> props) {
+	public void setProperties(Map<String, Object> props) throws ConfigurationException {
 		if (isInitializationComplete()) {
 
 			// Do we really need to do this again?
@@ -962,10 +827,10 @@ public class BasicComponent
 
 		CommandIfc command = new AddScriptCommand();
 
-		command.init(CommandIfc.ADD_SCRIPT_CMD, "New command script");
+		command.init(CommandIfc.ADD_SCRIPT_CMD, "New command script", "Scripts");
 		scriptCommands.put(command.getCommandId(), command);
 		command = new RemoveScriptCommand();
-		command.init(CommandIfc.DEL_SCRIPT_CMD, "Remove command script");
+		command.init(CommandIfc.DEL_SCRIPT_CMD, "Remove command script", "Scripts");
 		scriptCommands.put(command.getCommandId(), command);
 		if (props.get(SCRIPTS_DIR_PROP_KEY) != null) {
 			scriptsBaseDir = (String) props.get(SCRIPTS_DIR_PROP_KEY);
@@ -975,12 +840,6 @@ public class BasicComponent
 		cmpInfo = new ComponentInfo(getName(), this.getClass());
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param manager
-	 */
 	@Override
 	public void setVHostManager(VHostManagerIfc manager) {
 		this.vHostManager = manager;
@@ -1077,7 +936,7 @@ public class BasicComponent
 	 *
 	 *
 	 *
-	 * @return a value of <code>Map<String,CommandIfc></code>
+	 * @return a value of {@code Map<String,CommandIfc>}
 	 */
 	protected Map<String, CommandIfc> getScriptCommands() {
 		return scriptCommands;
@@ -1121,6 +980,9 @@ public class BasicComponent
 
 		String[] dirs = new String[] { scriptsBaseDir, scriptsCompDir };
 
+		// check class only from main directory
+
+
 		for (String scriptsPath : dirs) {
 			log.log(Level.CONFIG, "{0}: Loading scripts from directory: {1}", new Object[] {
 					getName(),
@@ -1135,7 +997,9 @@ public class BasicComponent
 						if (f.isFile() &&!f.toString().endsWith("~") &&!f.isHidden())  {
 							String cmdId    = null;
 							String cmdDescr = null;
+							String cmdGroup = null;
 							String comp     = null;
+							String compClass = null;
 
 							file = f;
 
@@ -1161,9 +1025,19 @@ public class BasicComponent
 									comp = line.substring(idx + CommandIfc.SCRIPT_COMPONENT.length())
 											.trim();
 								}
+								idx = line.indexOf(CommandIfc.SCRIPT_CLASS);
+								if (idx >= 0) {
+									compClass = line.substring(idx + CommandIfc.SCRIPT_CLASS.length())
+											.trim();
+								}
+								idx = line.indexOf(CommandIfc.SCRIPT_GROUP);
+								if (idx >= 0) {
+									cmdGroup = line.substring(idx + CommandIfc.SCRIPT_GROUP.length())
+											.trim();
+								}
 							}
 							buffr.close();
-							if ((cmdId == null) || (cmdDescr == null) || (comp == null)) {
+							if ((cmdId == null) || (cmdDescr == null)) {
 								log.log(Level.WARNING,
 										"Admin script found but it has no command ID or command" +
 										"description: " + "{0}", file);
@@ -1171,21 +1045,48 @@ public class BasicComponent
 								continue;
 							}
 
-							// What components should load the script....
-							String[] comp_names = comp.split(",");
 							boolean  found      = false;
 
-							for (String cmp : comp_names) {
-								found = getName().equals(cmp);
-								if (found) {
-									break;
+							if (comp != null) {
+								// Which components should load the script
+								String[] comp_names = comp.split(",");
+
+								// check component names
+								for (String cmp : comp_names) {
+									cmp = cmp.trim();
+									found |= getName().equals(cmp);
+								}
+							}
+
+							// check component classes
+							if ( null != compClass ){
+								// do we need this check? it blocks us from loading adhoc
+								// commands from component named directory if it is marked
+								// as for a specific component class - this should be allowed
+//								if ( scriptsPath.endsWith( getName() ) ){
+//									// ok, this is script for component of particular name, skip
+//									// loading based on class
+//									continue;
+//								}
+								String[] comp_classes = compClass.split( "," );
+								for ( String cmp : comp_classes ) {
+									try {
+										// we also check whether script is loaded for particular class or it's subclasses
+										Class<?> loadClass = ModulesManagerImpl.getInstance().forName(cmp);
+										found |= loadClass.isAssignableFrom( this.getClass());
+
+									} catch ( NoClassDefFoundError ex ) {
+										log.log( Level.WARNING, "Tried loading script with class defined as: {0} for class: {1}",
+														 new String[] { cmp, this.getClass().getCanonicalName() } );
+									} catch ( ClassNotFoundException ex ) {
+										// just ignore
+									}
 								}
 							}
 							if (!found) {
 								log.log(Level.CONFIG,
-										"{0}: skipping admin script {1} for component: {2}", new Object[] {
-										getName(),
-										scriptsPath, comp });
+										"{0}: skipping admin script {1}, id: {2}, descr: {3}, group: {4} for component: {5} or class: {6}", new Object[] {
+										getName(), file, cmdId, cmdDescr, cmdGroup, comp, compClass });
 
 								continue;
 							}
@@ -1193,11 +1094,14 @@ public class BasicComponent
 							int    idx = file.toString().lastIndexOf('.');
 							String ext = file.toString().substring(idx + 1);
 
-							addCommand.addAdminScript(cmdId, cmdDescr, sb.toString(), null, ext, binds);
+							if (cmdGroup != null && cmdGroup.contains("${componentName}")) {
+								cmdGroup = cmdGroup.replace("${componentName}", this.getDiscoDescription());
+							}
+							
+							addCommand.addAdminScript(cmdId, cmdDescr, cmdGroup, sb.toString(), null, ext, binds);
 							log.log(Level.CONFIG,
 									"{0}: Loaded admin command from file: {1}, id: {2}, ext: {3}, descr: {4}",
-									new Object[] { getName(),
-									file, cmdId, ext, cmdDescr });
+									new Object[] { getName(), file, cmdId, ext, cmdDescr });
 						}
 					}
 				} 

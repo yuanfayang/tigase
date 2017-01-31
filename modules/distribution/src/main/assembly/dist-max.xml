@@ -37,6 +37,21 @@
 			<directory>../../docs</directory>
 			<outputDirectory>docs</outputDirectory>
 			<includes>
+				<include>Administration_Guide/html_chunk/**/*</include>
+				<include>Administration_Guide/pdf/**/*</include>
+				<include>Development_Guide/html_chunk/**/*</include>
+				<include>Development_Guide/pdf/**/*</include>
+				<include>Properties_Guide/html_chunk/**/*</include>
+				<include>Properties_Guide/pdf/**/*</include>
+				<include>User_Guide/html_chunk/**/*</include>
+				<include>User_Guide/pdf/**/*</include>
+				<include>javadoc/**/*</include>
+			</includes>
+		</fileSet>
+		<fileSet>
+			<directory>../../win-stuff</directory>
+			<outputDirectory>win-stuff</outputDirectory>
+			<includes>
 				<include>*/**</include>
 			</includes>
 		</fileSet>
@@ -123,9 +138,12 @@
 				<include>tigase:tigase-stats-collector-library</include>
 				<include>tigase:tigase-stats-collector-provider</include>
 				<include>tigase:tigase-http-api</include>
+				<include>tigase:tigase-http-api-jetty</include>
+				<include>tigase.sure.web:tigase-web-ui</include>
 				<include>tigase:tigase-message-archiving</include>
 				<include>tigase:tigase-socks5</include>
 				<include>tigase:tigase-stun</include>
+				<include>tigase:tigase-mongodb</include>
 
 				<!--database libraries-->
 				<include>org.apache.derby:derby</include>
@@ -133,6 +151,7 @@
 				<include>mysql:mysql-connector-java</include>
 				<include>postgresql:postgresql</include>
 				<include>net.sourceforge.jtds:jtds</include>
+				<include> org.mongodb:mongo-java-driver</include>
 				
 				<!-- other libraries-->
 				<include>org.codehaus.groovy:groovy-all</include>
@@ -143,18 +162,19 @@
 				<include>de.javawi:jstun</include>
 
 				<!--HTTP API component dependencies-->
-				<include>org.eclipse.jetty.orbit:javax.servlet</include>
-				<include>org.eclipse.jetty:jetty-continuation</include>
-				<include>org.eclipse.jetty:jetty-deploy</include>
+				<include>javax.servlet:javax.servlet-api</include>
+				<!--<include>org.eclipse.jetty.orbit:javax.servlet</include>-->
+				<!--<include>org.eclipse.jetty:jetty-continuation</include>-->
+				<!--<include>org.eclipse.jetty:jetty-deploy</include>-->
 				<include>org.eclipse.jetty:jetty-http</include>
 				<include>org.eclipse.jetty:jetty-io</include>
 				<include>org.eclipse.jetty:jetty-security</include>
 				<include>org.eclipse.jetty:jetty-server</include>
 				<include>org.eclipse.jetty:jetty-servlet</include>
 				<include>org.eclipse.jetty:jetty-util</include>
-				<include>org.eclipse.jetty:jetty-webapp</include>
-				<include>org.eclipse.jetty:jetty-xml</include>
-				<include>org.eclipse.jetty.osgi:jetty-osgi-boot</include>
+				<!--<include>org.eclipse.jetty:jetty-webapp</include>-->
+				<!--<include>org.eclipse.jetty:jetty-xml</include>-->
+				<!--<include>org.eclipse.jetty.osgi:jetty-osgi-boot</include>-->
 
 				<!--OSGi dependencies-->
 				<include>org.osgi:org.osgi.core</include>

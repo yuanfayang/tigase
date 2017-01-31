@@ -49,23 +49,14 @@ public class StartZlib extends S2SAbstractProcessor {
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 * @param serv
-	 * @param results
-	 */
+	@Override
+	public int order() {
+		return Order.StartZlib.ordinal();
+	}
+	
 	@Override
 	public void streamFeatures(S2SIOService serv, List<Element> results) {
 
 		// results.add(features);
 	}
 }
-
-
-//~ Formatted in Sun Code Convention
-
-
-//~ Formatted by Jindent --- http://www.jindent.com

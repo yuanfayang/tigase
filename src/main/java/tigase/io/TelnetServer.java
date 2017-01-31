@@ -270,14 +270,6 @@ public class TelnetServer implements SampleSocketThread.SocketHandler {
 		;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param ioifc
-	 *
-	 * @throws IOException
-	 */
 	@Override
 	public void handleIOInterface(IOInterface ioifc) throws IOException {
 		ByteBuffer socketInput =
@@ -302,20 +294,12 @@ public class TelnetServer implements SampleSocketThread.SocketHandler {
 		reader.addIOInterface(ioifc);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param sc
-	 *
-	 * @throws IOException
-	 */
 	@Override
 	public void handleSocketAccept(SocketChannel sc) throws IOException {
 		iosock = new SocketIO(sc);
 
 		if (ssl) {
-			iosock = new TLSIO(iosock, new TLSWrapper(TLSUtil.getSSLContext("SSL", null), null, false, false), ByteOrder.BIG_ENDIAN);
+			iosock = new TLSIO(iosock, new TLSWrapper(TLSUtil.getSSLContext("SSL", null), null, null, 0, false, false), ByteOrder.BIG_ENDIAN);
 		}    // end of if (ssl)
 
 		reader.addIOInterface(iosock);

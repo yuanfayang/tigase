@@ -56,6 +56,9 @@ public interface Configurable
 	public static final String AMP_CLASS_NAME = "tigase.server.amp.AmpComponent";
 
 	/** Field description */
+	public static final String AMP_CLUST_CLASS_NAME = "tigase.cluster.AmpComponentClustered";
+	
+	/** Field description */
 	public static final String BOSH_CLUST_COMP_CLASS_NAME =
 			"tigase.cluster.BoshConnectionClustered";
 
@@ -615,9 +618,21 @@ public interface Configurable
 	//~--- get methods ----------------------------------------------------------
 
 	/**
-	 * Returns default configuration settings for this object.
+	 * Returns default configuration settings for the component as a
+	 * <code>Map</code> with keys as configuration property IDs and values as the
+	 * configuration property values. All the default parameters returned from
+	 * this method are later passed to the <code>setProperties(...)</code> method.
+	 * Some of them may have changed value if they have been overwritten in the
+	 * server configuration. The configuration property value can be of any of the
+	 * basic types: <code>int</code>, <code>long</code>, <code>boolean</code>,
+	 * <code>String</code>.
+	 *
 	 * @param params
-	 * 
+	 *          is a <code>Map</code> with some initial properties set for the
+	 *          starting up server. These parameters can be used as a hints to
+	 *          generate component's default configuration.
+	 *
+	 * @return a <code>Map</code> with the component default configuration.
 	 */
 	Map<String, Object> getDefaults(Map<String, Object> params);
 
@@ -625,10 +640,12 @@ public interface Configurable
 
 	/**
 	 * Sets all configuration properties for the object.
-	 * @param properties
+	 *
+	 * @param properties {@link Map} with the configuration
+	 *
+	 * @throws tigase.conf.ConfigurationException - if setting configuration will
+	 *                                            fail which will make it unable
+	 *                                            to work
 	 */
-	void setProperties(Map<String, Object> properties);
+	void setProperties(Map<String, Object> properties) throws ConfigurationException;
 }
-
-
-//~ Formatted in Tigase Code Convention on 13/04/14

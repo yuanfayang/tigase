@@ -52,16 +52,11 @@ public class StreamFeatures extends S2SAbstractProcessor {
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param p
-	 * @param serv
-	 * @param results
-	 *
-	 * 
-	 */
+	@Override
+	public int order() {
+		return Order.StreamFeatures.ordinal();
+	}
+	
 	@Override
 	public boolean process(Packet p, S2SIOService serv, Queue<Packet> results) {
 		if (p.isElement(FEATURES_EL, FEATURES_NS)) {
@@ -75,15 +70,6 @@ public class StreamFeatures extends S2SAbstractProcessor {
 		return false;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param serv
-	 * @param attribs
-	 *
-	 * 
-	 */
 	@Override
 	public String streamOpened(S2SIOService serv, Map<String, String> attribs) {
 		if (attribs.containsKey("version")) {
@@ -97,13 +83,13 @@ public class StreamFeatures extends S2SAbstractProcessor {
 
 				featuresElement.addChildren(features);
 
-                                // do not send stattls feature to hosts in skip tls list
-                                if (attribs.containsKey("from")) {
-                                        if (skipTLSForHost(attribs.get("from"))) {
-                                                Element startTls = featuresElement.getChild(START_TLS_EL, START_TLS_NS);
-                                                featuresElement.removeChild(startTls);
-                                        }
-                                }                                
+				// do not send stattls feature to hosts in skip tls list
+				if (attribs.containsKey("from")) {
+					if (skipTLSForHost(attribs.get("from"))) {
+						Element startTls = featuresElement.getChild(START_TLS_EL, START_TLS_NS);
+						featuresElement.removeChild(startTls);
+					}
+				}
 
 				if (log.isLoggable(Level.FINEST)) {
 					log.log(Level.FINEST, "{0}, Sending stream features: {1}", new Object[] { serv,

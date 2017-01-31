@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.logging.Logger;
 
 import javax.script.Bindings;
+import tigase.conf.ConfigurationException;
 
 //~--- classes ----------------------------------------------------------------
 
@@ -49,14 +50,6 @@ public class MonitorComponent extends AbstractMessageReceiver {
 
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param params
-	 *
-	 * 
-	 */
 	@Override
 	public Map<String, Object> getDefaults(Map<String, Object> params) {
 		Map<String, Object> defs = super.getDefaults(params);
@@ -64,34 +57,16 @@ public class MonitorComponent extends AbstractMessageReceiver {
 		return defs;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String getDiscoCategoryType() {
 		return "generic";
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String getDiscoDescription() {
 		return "Monitor";
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param list
-	 */
 	@Override
 	public void getStatistics(StatisticsList list) {
 		super.getStatistics(list);
@@ -99,32 +74,14 @@ public class MonitorComponent extends AbstractMessageReceiver {
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Initialize a mapping of key/value pairs which can be used in scripts
-	 * loaded by the server
-	 *
-	 * @param binds A mapping of key/value pairs, all of whose keys are Strings.
-	 */
 	@Override
 	public void initBindings(Bindings binds) {
 		super.initBindings(binds);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 */
 	@Override
 	public void processPacket(Packet packet) {}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public int processingInThreads() {
 		return Runtime.getRuntime().availableProcessors();
@@ -135,20 +92,8 @@ public class MonitorComponent extends AbstractMessageReceiver {
 		return Runtime.getRuntime().availableProcessors();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param props
-	 */
 	@Override
-	public void setProperties(Map<String, Object> props) {
+	public void setProperties(Map<String, Object> props) throws ConfigurationException {
 		super.setProperties(props);
 	}
 }
-
-
-//~ Formatted in Sun Code Convention
-
-
-//~ Formatted by Jindent --- http://www.jindent.com

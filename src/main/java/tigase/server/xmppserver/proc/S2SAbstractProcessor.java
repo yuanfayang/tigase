@@ -26,20 +26,16 @@ package tigase.server.xmppserver.proc;
 
 //~--- non-JDK imports --------------------------------------------------------
 
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import tigase.server.Packet;
 import tigase.server.xmppserver.S2SConnectionHandlerIfc;
 import tigase.server.xmppserver.S2SIOService;
 import tigase.server.xmppserver.S2SProcessor;
-
 import tigase.xml.Element;
-
-//~--- JDK imports ------------------------------------------------------------
-
-import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.Map;
-import java.util.Queue;
 
 /**
  * Created: Dec 10, 2010 3:32:11 PM
@@ -49,6 +45,18 @@ import java.util.Queue;
  */
 public abstract class S2SAbstractProcessor
 				implements S2SProcessor {
+	
+	// Order of enum values is important as it is an order in which packet 
+	// is processed by processors
+	protected static enum Order {
+		StreamOpen,				// 0
+		StreamError,			// 1
+		StreamFeatures,			// 2
+		StartTLS,				// 3
+		StartZlib,				// 4
+		Dialback				// 5
+	}
+	
 	/** Field description */
 	protected static final String DB_RESULT_EL_NAME = "db:result";
 
@@ -155,49 +163,20 @@ public abstract class S2SAbstractProcessor
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param handler
-	 * @param props
-	 */
 	@Override
 	public void init(S2SConnectionHandlerIfc<S2SIOService> handler,
 									 Map<String, Object> props) {
 		this.handler = handler;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param p
-	 * @param serv
-	 * @param results
-	 *
-	 * 
-	 */
 	@Override
 	public boolean process(Packet p, S2SIOService serv, Queue<Packet> results) {
 		return false;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param serv
-	 */
 	@Override
 	public void serviceStarted(S2SIOService serv) {}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param serv
-	 */
 	@Override
 	public void serviceStopped(S2SIOService serv) {}
 
@@ -232,40 +211,19 @@ public abstract class S2SAbstractProcessor
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param serv
-	 */
 	@Override
 	public void streamClosed(S2SIOService serv) {}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 * @param serv
-	 * @param results
-	 */
 	@Override
 	public void streamFeatures(S2SIOService serv, List<Element> results) {}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param serv
-	 * @param attribs
-	 *
-	 * 
-	 */
 	@Override
 	public String streamOpened(S2SIOService serv, Map<String, String> attribs) {
 		return null;
 	}
+	
+	@Override
+	public int compareTo(S2SProcessor proc) {
+		return (-1) * (proc.order() - order());
+	}
 }
-
-
-//~ Formatted in Tigase Code Convention on 13/03/05

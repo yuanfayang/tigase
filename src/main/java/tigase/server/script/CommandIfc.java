@@ -81,6 +81,9 @@ public interface CommandIfc {
 
 	/** Field description */
 	public static final String COMPONENT_NAME = "componentName";
+	
+	/** Field description */
+	public static final String COMPONENT = "component";
 
 	/** Field description */
 	public static final String SERVICES_MAP = "servicesMap";
@@ -94,6 +97,12 @@ public interface CommandIfc {
 	/** Field description */
 	public static final String SCRIPT_COMPONENT = "AS:Component:";
 
+	/** Field description */
+	public static final String SCRIPT_CLASS = "AS:ComponentClass:";
+
+	/** Field description */
+	public static final String SCRIPT_GROUP = "AS:Group:";
+	
 	/** Field description */
 	public static final String LANGUAGE = "Language";
 
@@ -110,7 +119,13 @@ public interface CommandIfc {
 	public static final String DESCRIPT = "Description";
 
 	/** Field description */
+	public static final String GROUP = "Group";
+	
+	/** Field description */
 	public static final String SAVE_TO_DISK = "Save to disk";
+
+	/** Field description */
+	public static final String REMOVE_FROM_DISK = "Remove from disk";
 
 	/** Field description */
 	public static final String PACKET = "packet";
@@ -134,10 +149,12 @@ public interface CommandIfc {
 	String getCommandId();
 
 	String getDescription();
+	
+	String getGroup();
 
 	//~--- methods --------------------------------------------------------------
 
-	void init(String id, String description);
+	void init(String id, String description, String group);
 
 	//~--- get methods ----------------------------------------------------------
 

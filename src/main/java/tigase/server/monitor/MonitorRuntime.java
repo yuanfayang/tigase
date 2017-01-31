@@ -22,17 +22,21 @@
 
 package tigase.server.monitor;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadInfo;
-import java.lang.management.ThreadMXBean;
-import java.util.LinkedList;
-import java.util.logging.Logger;
+import tigase.xmpp.BareJID;
+import tigase.xmpp.JID;
+
 import tigase.sys.CPULoadListener;
 import tigase.sys.MemoryChangeListener;
 import tigase.sys.OnlineJidsReporter;
 import tigase.sys.ShutdownHook;
 import tigase.sys.TigaseRuntime;
-import tigase.xmpp.JID;
+
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
+import java.util.logging.Logger;
 
 /**
  * Created: Feb 19, 2009 12:31:14 PM
@@ -49,9 +53,9 @@ public class MonitorRuntime extends TigaseRuntime {
 					Logger.getLogger(MonitorRuntime.class.getName());
 
 	private static MonitorRuntime runtime = null;
-	private LinkedList<ShutdownHook> shutdownHooks =
-					new LinkedList<ShutdownHook>();
-	private LinkedList<OnlineJidsReporter> onlineJidsReporters =
+	private final LinkedHashSet<ShutdownHook> shutdownHooks =
+					new LinkedHashSet<ShutdownHook>();
+	private final LinkedList<OnlineJidsReporter> onlineJidsReporters =
 					new LinkedList<OnlineJidsReporter>();
 
 	private MonitorRuntime() {
@@ -114,11 +118,34 @@ public class MonitorRuntime extends TigaseRuntime {
 		return false;
 	}
 
-	/**
-	 *
-	 * @param jid
-	 * 
-	 */
+	@Override
+	public boolean isJidOnlineLocally(BareJID jid) {
+		if (onlineJidsReporters.size() == 1) {
+			return onlineJidsReporters.getFirst().containsJidLocally(jid);
+		} else {
+			for (OnlineJidsReporter onlineJidsReporter : onlineJidsReporters) {
+				if (onlineJidsReporter.containsJidLocally(jid)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+	
+	@Override
+	public boolean isJidOnlineLocally(JID jid) {
+		if (onlineJidsReporters.size() == 1) {
+			return onlineJidsReporters.getFirst().containsJidLocally(jid);
+		} else {
+			for (OnlineJidsReporter onlineJidsReporter : onlineJidsReporters) {
+				if (onlineJidsReporter.containsJidLocally(jid)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}	
+	
 	@Override
 	public JID[] getConnectionIdsForJid(JID jid) {
 		if (onlineJidsReporters.size() == 1) {

@@ -25,13 +25,10 @@ package tigase.server.xmppserver.proc;
 //~--- non-JDK imports --------------------------------------------------------
 
 import tigase.server.Packet;
-import tigase.server.xmppserver.ConnectionHandlerIfc;
 import tigase.server.xmppserver.S2SIOService;
-import tigase.server.xmppserver.S2SProcessor;
 
 //~--- JDK imports ------------------------------------------------------------
 
-import java.util.Map;
 import java.util.Queue;
 import java.util.logging.Logger;
 
@@ -48,16 +45,11 @@ public class StreamError extends S2SAbstractProcessor {
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param p
-	 * @param serv
-	 * @param results
-	 *
-	 * 
-	 */
+	@Override
+	public int order() {
+		return Order.StreamError.ordinal();
+	}
+	
 	@Override
 	public boolean process(Packet p, S2SIOService serv, Queue<Packet> results) {
 		if (p.getElemName() == "error") {
@@ -69,9 +61,3 @@ public class StreamError extends S2SAbstractProcessor {
 		}
 	}
 }
-
-
-//~ Formatted in Sun Code Convention
-
-
-//~ Formatted by Jindent --- http://www.jindent.com

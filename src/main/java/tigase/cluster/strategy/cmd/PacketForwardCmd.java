@@ -68,9 +68,10 @@ public class PacketForwardCmd
 	 */
 	private static final Logger log = Logger.getLogger(PacketForwardCmd.class.getName());
 
+	public static final String PACKET_FROM_KEY = "packet-from";
+
 	//~--- fields ---------------------------------------------------------------
 
-	private SessionManagerClusteredIfc        sm;
 	private DefaultClusteringStrategyAbstract strategy;
 
 	//~--- constructors ---------------------------------------------------------
@@ -81,35 +82,15 @@ public class PacketForwardCmd
 	 *
 	 *
 	 * @param name
-	 * @param sm
 	 * @param strategy
 	 */
-	public PacketForwardCmd(String name, SessionManagerClusteredIfc sm,
-			DefaultClusteringStrategyAbstract strategy) {
+	public PacketForwardCmd(String name, DefaultClusteringStrategyAbstract strategy) {
 		super(name);
-		this.sm       = sm;
 		this.strategy = strategy;
 	}
 
 	//~--- methods --------------------------------------------------------------
 
-	/*
-	 * (non-Javadoc)
-	 *
-	 * @see tigase.cluster.api.CommandListener#executeCommand(java.util.Map)
-	 */
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param fromNode
-	 * @param visitedNodes
-	 * @param data
-	 * @param packets
-	 *
-	 * @throws ClusterCommandException
-	 */
 	@Override
 	public void executeCommand(JID fromNode, Set<JID> visitedNodes, Map<String,
 			String> data, Queue<Element> packets)
@@ -121,9 +102,13 @@ public class PacketForwardCmd
 					visitedNodes, data, packets });
 		}
 		if ((packets != null) && (packets.size() > 0)) {
+			SessionManagerClusteredIfc sm = getSM();
 			for (Element elem : packets) {
 				try {
 					Packet                 el_packet = Packet.packetInstance(elem);
+					String packetFromStr  = data.get(PACKET_FROM_KEY);
+					if (packetFromStr != null)
+						el_packet.setPacketFrom(JID.jidInstanceNS(packetFromStr));
 					XMPPResourceConnection conn      = sm.getXMPPResourceConnection(el_packet);
 					Map<String, String>    locdata   = null;
 
@@ -181,6 +166,10 @@ public class PacketForwardCmd
 		} else {
 			log.finest("Empty packets list in the forward command");
 		}
+	}
+	
+	private SessionManagerClusteredIfc getSM() {
+		return strategy.getSM();
 	}
 }
 

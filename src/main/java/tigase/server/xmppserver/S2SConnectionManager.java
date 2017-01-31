@@ -26,6 +26,24 @@ package tigase.server.xmppserver;
 
 //~--- non-JDK imports --------------------------------------------------------
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.TimerTask;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.script.Bindings;
+import tigase.cert.CertificateUtil;
+import tigase.conf.ConfigurationException;
 import tigase.server.ConnectionManager;
 import tigase.server.Packet;
 import tigase.server.Permissions;
@@ -36,31 +54,13 @@ import tigase.server.xmppserver.proc.StartZlib;
 import tigase.server.xmppserver.proc.StreamError;
 import tigase.server.xmppserver.proc.StreamFeatures;
 import tigase.server.xmppserver.proc.StreamOpen;
-
 import tigase.stats.StatisticsList;
-
+import tigase.vhosts.VHostItem;
 import tigase.xml.Element;
-
 import tigase.xmpp.Authorization;
 import tigase.xmpp.JID;
 import tigase.xmpp.PacketErrorTypeException;
-
-//~--- JDK imports ------------------------------------------------------------
-
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.Map;
-import java.util.Queue;
-import java.util.TimerTask;
-
-import javax.script.Bindings;
+import tigase.xmpp.StanzaType;
 
 /**
  * Created: Jun 14, 2010 11:59:38 AM
@@ -110,6 +110,12 @@ public class S2SConnectionManager
 	public static final String S2S_CONNECTION_SELECTOR_PROP_VAL =
 			"tigase.server.xmppserver.S2SRandomSelector";
 
+	/** Field description */
+	public static final String S2S_DOMAIN_MAPPING_PROP_KEY = "s2s-domain-mapping";
+	
+	/** Field description */
+	public static final String S2S_DOMAIN_MAPPING_PROP_VAL = "";
+	
 	/** Field description */
 	protected static final String DB_RESULT_EL_NAME = "db:result";
 
@@ -165,54 +171,35 @@ public class S2SConnectionManager
 	 */
 	private Map<CID, CIDConnections> cidConnections = new ConcurrentHashMap<CID,
 			CIDConnections>(10000);
+	
+	/**
+	 * Holds list of manually entered mappings which provide substitutions for domains
+	 * matching pattens with names of servers to which we should connect.
+	 */
+	private DomainServerNameMapper domainServerNameMapper = new DomainServerNameMapper();
 
 	/**
 	 * List of processors which should handle all traffic incoming from the
 	 * network. In most cases if not all, these processors handle just protocol
 	 * traffic, all the rest traffic should be passed on to MR.
 	 */
-	private Map<String, S2SProcessor> processors = new LinkedHashMap<String, S2SProcessor>(
+	private Map<String, S2SProcessor> processorsMap = new LinkedHashMap<String, S2SProcessor>(
 			10);
+	private List<S2SProcessor> processors = Collections.emptyList();
 	private Map<String, S2SProcessor> filters = new LinkedHashMap<String, S2SProcessor>(10);
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 *
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
 	@Override
 	public boolean addOutPacket(Packet packet) {
 		return super.addOutPacket(packet);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param task
-	 * @param delay
-	 * @param unit
-	 */
 	@Override
 	public void addTimerTask(tigase.util.TimerTask task, long delay, TimeUnit unit) {
 		super.addTimerTask(task, delay, unit);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param task
-	 * @param delay
-	 * @param unit
-	 */
 	@Override
 	@Deprecated
 	public void addTimerTask(TimerTask task, long delay, TimeUnit unit) {
@@ -221,29 +208,11 @@ public class S2SConnectionManager
 
 	// ~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
 	@Override
 	public boolean handlesNonLocalDomains() {
 		return true;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 *
-	 *
-	 *
-	 * @return a value of <code>int</code>
-	 */
 	@Override
 	public int hashCodeForPacket(Packet packet) {
 
@@ -262,35 +231,17 @@ public class S2SConnectionManager
 
 	// ~--- methods --------------------------------------------------------------
 
-	/**
-	 * Initialize a mapping of key/value pairs which can be used in scripts
-	 * loaded by the server
-	 *
-	 * @param binds A mapping of key/value pairs, all of whose keys are Strings.
-	 */
 	@Override
 	public void initBindings(Bindings binds) {
 		super.initBindings(binds);
 		binds.put(CID_CONNECTIONS_BIND, cidConnections);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param port_props
-	 */
 	@Override
 	public void initNewConnection(Map<String, Object> port_props) {
 		addWaitingTask(port_props);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 */
 	@Override
 	public void processPacket(Packet packet) {
 		if (log.isLoggable(Level.FINEST)) {
@@ -379,16 +330,6 @@ public class S2SConnectionManager
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param serv
-	 *
-	 *
-	 *
-	 * @return a value of <code>Queue<Packet></code>
-	 */
 	@Override
 	public Queue<Packet> processSocketData(S2SIOService serv) {
 		Queue<Packet> packets = serv.getReceivedPackets();
@@ -405,7 +346,7 @@ public class S2SConnectionManager
 
 			boolean processed = false;
 
-			for (S2SProcessor proc : processors.values()) {
+			for (S2SProcessor proc : processors) {
 				processed |= proc.process(p, serv, results);
 				writePacketsToSocket(serv, results);
 			}
@@ -454,12 +395,6 @@ public class S2SConnectionManager
 		return null;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param port_props
-	 */
 	@Override
 	public void reconnectionFailed(Map<String, Object> port_props) {
 		CID cid = (CID) port_props.get("cid");
@@ -483,12 +418,6 @@ public class S2SConnectionManager
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @return a value of <code>int</code>
-	 */
 	@Override
 	public int schedulerThreads() {
 
@@ -496,33 +425,39 @@ public class S2SConnectionManager
 		return Runtime.getRuntime().availableProcessors();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param elem_name
-	 * @param connCid
-	 * @param keyCid
-	 * @param valid
-	 * @param key_sessionId
-	 * @param serv_sessionId
-	 * @param cdata
-	 * @param handshakingOnly
-	 *
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
 	@Override
 	public boolean sendVerifyResult(String elem_name, CID connCid, CID keyCid,
 			Boolean valid, String key_sessionId, String serv_sessionId, String cdata,
 			boolean handshakingOnly) {
+		return this.sendVerifyResult(elem_name, connCid, keyCid, valid, key_sessionId, serv_sessionId, cdata, handshakingOnly, null);
+	}
+	
+	@Override
+	public boolean sendVerifyResult(String elem_name, CID connCid, CID keyCid,
+			Boolean valid, String key_sessionId, String serv_sessionId, String cdata,
+			boolean handshakingOnly, Element errorElem) {	
 		CIDConnections cid_conns = getCIDConnections(connCid);
 
 		if (cid_conns != null) {
-			Packet verify_valid = getValidResponse(elem_name, keyCid, key_sessionId, valid,
+			StanzaType type = null;
+			if (valid != null) {
+				if (valid) {
+					type = StanzaType.valid;
+				}
+				else {
+					type = StanzaType.invalid;
+				}
+			}
+			if (errorElem != null) {
+				type = StanzaType.error;
+			}
+			Packet verify_valid = getValidResponse(elem_name, keyCid, key_sessionId, type,
 					cdata);
 
+			if (errorElem != null) {
+				verify_valid.getElement().addChild(errorElem);
+			}
+			
 			if (handshakingOnly) {
 				cid_conns.sendHandshakingOnly(verify_valid);
 
@@ -541,37 +476,21 @@ public class S2SConnectionManager
 		return false;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param serv
-	 */
 	@Override
 	public void serviceStarted(S2SIOService serv) {
 		super.serviceStarted(serv);
 		log.log(Level.FINEST, "s2s connection opened: {0}", serv);
-		for (S2SProcessor proc : processors.values()) {
+		for (S2SProcessor proc : processors) {
 			proc.serviceStarted(serv);
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param serv
-	 *
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
 	@Override
 	public boolean serviceStopped(S2SIOService serv) {
 		boolean result = super.serviceStopped(serv);
 
 		if (result) {
-			for (S2SProcessor proc : processors.values()) {
+			for (S2SProcessor proc : processors) {
 				proc.serviceStopped(serv);
 			}
 		}
@@ -581,58 +500,28 @@ public class S2SConnectionManager
 
 	// ~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param serv
-	 */
 	@Override
 	public void tlsHandshakeCompleted(S2SIOService serv) {
-		for (S2SProcessor proc : processors.values()) {
+		for (S2SProcessor proc : processors) {
 			proc.serviceStarted(serv);
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param ios
-	 * @param data
-	 */
 	@Override
 	public void writeRawData(S2SIOService ios, String data) {
 		super.writeRawData(ios, data);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param serv
-	 */
 	@Override
 	public void xmppStreamClosed(S2SIOService serv) {
 		if (log.isLoggable(Level.FINER)) {
 			log.log(Level.FINER, "{0}, Stream closed.", new Object[] { serv });
 		}
-		for (S2SProcessor proc : processors.values()) {
+		for (S2SProcessor proc : processors) {
 			proc.streamClosed(serv);
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param serv
-	 * @param attribs
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 */
 	@Override
 	public String xmppStreamOpened(S2SIOService serv, Map<String, String> attribs) {
 		if (log.isLoggable(Level.FINER)) {
@@ -641,7 +530,7 @@ public class S2SConnectionManager
 
 		StringBuilder sb = new StringBuilder(256);
 
-		for (S2SProcessor proc : processors.values()) {
+		for (S2SProcessor proc : processors) {
 			String res = proc.streamOpened(serv, attribs);
 
 			if (res != null) {
@@ -659,22 +548,6 @@ public class S2SConnectionManager
 
 	//~--- get methods ----------------------------------------------------------
 
-	// ~--- get methods ----------------------------------------------------------
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param cid
-	 * @param createNew
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>CIDConnections</code>
-	 * @throws LocalhostException
-	 * @throws NotLocalhostException
-	 */
 	@Override
 	public CIDConnections getCIDConnections(CID cid, boolean createNew)
 					throws NotLocalhostException, LocalhostException {
@@ -687,16 +560,6 @@ public class S2SConnectionManager
 		return result;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param params
-	 *
-	 *
-	 *
-	 * @return a value of <code>Map<String,Object></code>
-	 */
 	@Override
 	public Map<String, Object> getDefaults(Map<String, Object> params) {
 		Map<String, Object> props = super.getDefaults(params);
@@ -710,75 +573,57 @@ public class S2SConnectionManager
 		props.put(MAX_OUT_PER_IP_CONNECTIONS_PROP_KEY, MAX_OUT_PER_IP_CONNECTIONS_PROP_VAL);
 		props.put(S2S_CONNECTION_SELECTOR_PROP_KEY, S2S_CONNECTION_SELECTOR_PROP_VAL);
 		props.put(CID_CONNECTIONS_TASKS_THREADS_KEY, CID_CONNECTIONS_TASKS_THREADS_VAL);
+		props.put(S2S_DOMAIN_MAPPING_PROP_KEY, S2S_DOMAIN_MAPPING_PROP_VAL);
 
 		return props;
 	}
-
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 */
+        
 	@Override
 	public String getDiscoCategoryType() {
 		return "s2s";
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 */
 	@Override
 	public String getDiscoDescription() {
 		return "S2S connection manager";
 	}
 
 	/**
+	 * {@inheritDoc}
 	 *
-	 * @param connectionCid
-	 * @param keyCid
-	 * @param key
-	 * @param key_sessionId
-	 * @param asking_sessionId
+	 * <br><br>
 	 *
-	 *
-	 * @return a value of <code>String</code>
+	 * Secret is used in generation of dialback key
 	 */
 	@Override
-	public String getLocalDBKey(CID connectionCid, CID keyCid, String key,
-			String key_sessionId, String asking_sessionId) {
-		CIDConnections cid_conns = getCIDConnections(keyCid);
-		String         result    = (cid_conns == null)
-				? null
-				: cid_conns.getDBKey(key_sessionId);
-
-		if (result == null) {
-
-			// In piggybacking mode the DB key can be available in the connectionCID
-			// rather then
-			// keyCID
-			cid_conns = getCIDConnections(connectionCid);
-			result    = (cid_conns == null)
-					? null
-					: cid_conns.getDBKey(key_sessionId);
+	public String getSecretForDomain(String domain) throws NotLocalhostException {
+		VHostItem item = vHostManager.getVHostItem(domain);
+		if (item == null) {
+			if (this.isLocalDomainOrComponent(domain)) {
+				int idx = domain.indexOf('.');
+				if (idx > 0) {
+					String        basedomain = domain.substring(idx + 1);
+					item = vHostManager.getVHostItem(basedomain);
+				}
+				
+				if (item == null) {
+					item = vHostManager.getVHostItem(vHostManager.getDefVHostItem().toString());
+				}
+			}
 		}
-
-		return result;
+		
+		if (item == null) {
+			throw new NotLocalhostException("This is not a valid localhost: " + domain);
+		}
+		
+		return item.getS2sSecret();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param list
-	 */
+	@Override
+	public String getServerNameForDomain(String domain) {
+		return domainServerNameMapper.getServerNameForDomain(domain);
+	}	
+		
 	@Override
 	public void getStatistics(StatisticsList list) {
 		super.getStatistics(list);
@@ -837,33 +682,23 @@ public class S2SConnectionManager
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 * @param serv
-	 *
-	 *
-	 * @return a value of <code>List<Element></code>
-	 */
 	@Override
 	public List<Element> getStreamFeatures(S2SIOService serv) {
 		List<Element> results = new ArrayList<Element>(10);
 
-		for (S2SProcessor proc : processors.values()) {
+		for (S2SProcessor proc : processors) {
 			proc.streamFeatures(serv, results);
 		}
 
 		return results;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
+	@Override
+	public boolean isTlsRequired(String domain) {
+		VHostItem item = vHostManager.getVHostItemDomainOrComponent(domain);
+		return item.isTlsRequired();
+	}
+	
 	@Override
 	public boolean isTlsWantClientAuthEnabled() {
 		return true;
@@ -871,16 +706,8 @@ public class S2SConnectionManager
 
 	//~--- set methods ----------------------------------------------------------
 
-	// ~--- set methods ----------------------------------------------------------
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param props
-	 */
 	@Override
-	public void setProperties(Map<String, Object> props) {
+	public void setProperties(Map<String, Object> props) throws ConfigurationException {
 		super.setProperties(props);
 		if (props.containsKey(CID_CONNECTIONS_TASKS_THREADS_KEY)) {
 			CIDConnections.setOutgoingOpenThreadsSize((Integer) props.get(
@@ -896,14 +723,14 @@ public class S2SConnectionManager
 
 		// it needs to be here as we need properties for plugins
 		// TODO: Make used processors list a configurable thing
-		processors.clear();
-		processors.put(Dialback.class.getSimpleName(), new Dialback());
-		processors.put(StartTLS.class.getSimpleName(), new StartTLS());
-		processors.put(StartZlib.class.getSimpleName(), new StartZlib());
-		processors.put(StreamError.class.getSimpleName(), new StreamError());
-		processors.put(StreamFeatures.class.getSimpleName(), new StreamFeatures());
-		processors.put(StreamOpen.class.getSimpleName(), new StreamOpen());
-		for (S2SProcessor proc : processors.values()) {
+		processorsMap.clear();
+		processorsMap.put(Dialback.class.getSimpleName(), new Dialback());
+		processorsMap.put(StartTLS.class.getSimpleName(), new StartTLS());
+		processorsMap.put(StartZlib.class.getSimpleName(), new StartZlib());
+		processorsMap.put(StreamError.class.getSimpleName(), new StreamError());
+		processorsMap.put(StreamFeatures.class.getSimpleName(), new StreamFeatures());
+		processorsMap.put(StreamOpen.class.getSimpleName(), new StreamOpen());
+		for (S2SProcessor proc : processorsMap.values()) {
 			Map<String, Object> proc_props = new ConcurrentHashMap<String, Object>(4);
 
 			for (Map.Entry<String, Object> entry : props.entrySet()) {
@@ -921,6 +748,10 @@ public class S2SConnectionManager
 			}
 			proc.init(this, proc_props);
 		}
+		List<S2SProcessor> tmp_processors = new ArrayList<>(processorsMap.values());
+		Collections.sort(tmp_processors);
+		this.processors = Collections.unmodifiableList(tmp_processors);
+		
 		filters.clear();
 		filters.put(PacketChecker.class.getSimpleName(), new PacketChecker());
 		for (S2SProcessor filter : filters.values()) {
@@ -957,51 +788,37 @@ public class S2SConnectionManager
 					selector_str);
 			log.log(Level.SEVERE, "Selector initialization exception: ", e);
 		}
+		
+		String tmp = (String) props.get(S2S_DOMAIN_MAPPING_PROP_KEY);
+		DomainServerNameMapper tmp_domainServerNameMapper = new DomainServerNameMapper();
+		if (tmp != null) {
+			for(String part : tmp.split(",")) {
+				String[] kv = part.split("=");
+				if (kv.length >= 2) {
+					tmp_domainServerNameMapper.addEntry(kv[0], kv[1]);
+				} 
+			}
+		}
+		domainServerNameMapper = tmp_domainServerNameMapper;
 	}
 
 	//~--- get methods ----------------------------------------------------------
 
-	// ~--- get methods ----------------------------------------------------------
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * @return a value of <code>int[]</code>
-	 */
 	@Override
 	protected int[] getDefPlainPorts() {
 		return new int[] { 5269 };
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @return a value of <code>long</code>
-	 */
 	@Override
 	protected long getMaxInactiveTime() {
 		return maxInactivityTime;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @return a value of <code>S2SIOService</code>
-	 */
 	@Override
 	protected S2SIOService getXMPPIOServiceInstance() {
 		return new S2SIOService();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
 	@Override
 	protected boolean isHighThroughput() {
 		return true;
@@ -1009,7 +826,6 @@ public class S2SConnectionManager
 
 	//~--- methods --------------------------------------------------------------
 
-	// ~--- methods --------------------------------------------------------------
 	private CIDConnections createNewCIDConnections(CID cid)
 					throws NotLocalhostException, LocalhostException {
 		if (!isLocalDomainOrComponent(cid.getLocalHost())) {
@@ -1041,19 +857,15 @@ public class S2SConnectionManager
 		return cidConnections.get(cid);
 	}
 
-	private Packet getValidResponse(String elem_name, CID cid, String id, Boolean valid,
+	private Packet getValidResponse(String elem_name, CID cid, String id, StanzaType type,
 			String cdata) {
 		Element elem = new Element(elem_name);
 
 		if (cdata != null) {
 			elem.setCData(cdata);
 		}
-		if (valid != null) {
-			if (valid.booleanValue()) {
-				elem.addAttribute("type", "valid");
-			} else {
-				elem.addAttribute("type", "invalid");
-			}
+		if (type != null) {
+			elem.addAttribute("type", type.name());
 		}
 		if (id != null) {
 			elem.addAttribute("id", id);
@@ -1063,6 +875,101 @@ public class S2SConnectionManager
 				.jidInstanceNS(cid.getRemoteHost()));
 
 		return result;
+	}
+	
+	protected static class DomainServerNameMapper {
+		
+		private class Entry implements Comparable<Entry>{
+			private final String pattern;
+			private final String serverName;
+
+			public Entry(String pattern, String serverName) {
+				this.pattern = pattern.toLowerCase();
+				this.serverName = serverName;
+			}
+
+			public String getServerName() {
+				return serverName;
+			}
+
+			public boolean matches(String domain) {
+				if ("*".equals(pattern)) {
+					return true;
+				}
+				return CertificateUtil.match(domain, pattern);
+			}
+
+			@Override
+			public boolean equals(Object obj) {
+				if (obj instanceof Entry) {
+					return pattern.equals(((Entry) obj).pattern);
+				}
+				return false;
+			}
+			
+			@Override
+			public int hashCode() {
+				return pattern.hashCode();
+			}
+
+			@Override
+			public int compareTo(Entry o) {
+				if (o.pattern.contains("*")) {
+					if (!pattern.contains("*"))
+						return -1;
+				} else {
+					if (pattern.contains("*"))
+						return 1;
+				}
+				int val = (pattern.split(".").length - o.pattern.split(".").length) * -1;
+				if (val != 0)
+					return val;
+				return o.pattern.length() - pattern.length();
+			}
+		}
+		
+		private List<Entry> entries = new ArrayList<Entry>();
+		
+		public DomainServerNameMapper() {}
+		
+		protected void addEntry(String pattern, String serverName) {
+			// clone list to fix possible concurrency issues with collection
+			// could use CopyOnWriteArrayList but sorting this collection 
+			// is not possible on JDK7
+			synchronized (this) {
+				List<Entry> entries = new ArrayList<Entry>(this.entries);
+				Entry e = new Entry(pattern, serverName);
+				entries.add(e);
+				Collections.sort(entries);
+				this.entries = entries;
+			}
+		}
+		
+		public String getServerNameForDomain(String domain) {
+			for (Entry e : entries) {
+				if (e.matches(domain))
+					return e.getServerName();
+			}
+			return domain;
+		}
+
+		@Override
+		public String toString() {
+			StringBuilder sb = new StringBuilder();
+			sb.append(getClass().getName()).append("[");
+			boolean first = true;
+			for (Entry e : entries) {
+				if (!first)
+					sb.append(",");
+				sb.append(e.pattern);
+				sb.append("=");
+				sb.append(e.serverName);
+				first = false;
+			} 
+			sb.append("]");
+			return sb.toString();
+		}
+		
 	}
 }
 

@@ -53,12 +53,12 @@ public class JabberIqRoster
 	/** Field description */
 	public static final String ANON = "anon";
 	private static final String[][] ELEMENTS = {
-		{ Iq.ELEM_NAME, Iq.QUERY_NAME }, { Iq.ELEM_NAME, Iq.QUERY_NAME }
+		{ Iq.ELEM_NAME, Iq.QUERY_NAME }, { Iq.ELEM_NAME, Iq.QUERY_NAME }, { Iq.ELEM_NAME, Iq.QUERY_NAME }
 	};
 	/** Private logger for class instance. */
 	private static final Logger log = Logger.getLogger( JabberIqRoster.class.getName() );
 	private static final String[] XMLNSS = { RosterAbstract.XMLNS,
-																					 RosterAbstract.XMLNS_DYNAMIC };
+																					 RosterAbstract.XMLNS_DYNAMIC, RosterAbstract.XMLNS_LOAD };
 	private static final String[] IQ_QUERY_ITEM_PATH = { Iq.ELEM_NAME, Iq.QUERY_NAME,
 																											 "item" };
 	/** unique ID of the plugin */
@@ -91,10 +91,13 @@ public class JabberIqRoster
 	}
 
 	/**
+	 * {@inheritDoc}
+	 *
+	 * <br><br>
+	 *
 	 * Performs processing of <em>IQ</em> packets with <em>jabber:iq:roster</em>
 	 * xmlns with the regard whether it's roster <em>set</em> or <em>get</em>
 	 * request or possibly dynamic-roster is involved. request.
-	 * <p> {@inheritDoc}
 	 */
 	@Override
 	public void process( Packet packet, XMPPResourceConnection session,
@@ -132,7 +135,7 @@ public class JabberIqRoster
 				return;
 			}
 		} else {
-
+			
 			// Packet probably to the user, let's check where it came from
 			if ( session.isUserId( packet.getStanzaTo().getBareJID() ) ){
 				if ( packet.getStanzaTo().getResource() != null ){
@@ -202,6 +205,24 @@ public class JabberIqRoster
 																																					 "Request type is incorrect", false ) );
 							break;
 					}    // end of switch (type)
+				} else if (xmlns == RosterAbstract.XMLNS_LOAD) {
+					switch ( type ) {
+						case set:
+							if (!roster_util.isRosterLoaded(session)) {
+								// here we do not care about result as we only trigger 
+								// loading of roster from database
+								roster_util.getRosterElement(session, session.getJID());
+							}
+							Element resultEl = packet.getElement().clone();
+							resultEl.setAttribute("type", StanzaType.result.name());
+							Packet result = Packet.packetInstance(resultEl, packet.getStanzaFrom(), packet.getStanzaTo());
+							result.setPacketFrom(packet.getPacketFrom());
+							result.setPacketTo(packet.getPacketTo());
+							results.add(result);
+							break;
+						default:
+							break;
+					}
 				} else {
 					// Hm, don't know what to do, unexpected name space, let's record it
 					log.log( Level.WARNING, "Unknown XMLNS for the roster plugin: {0}", packet );
@@ -280,7 +301,7 @@ public class JabberIqRoster
 	 * Method processes roster
 	 * <code>get</code> request related to dynamic roster. Generates output packet
 	 * with data from the DynamicRoster implementation for every
-	 * <em>item<em>element from processed packet or error otherwise.
+	 * <em>item</em>element from processed packet or error otherwise.
 	 *
 	 * @param packet   packet is which being processed.
 	 * @param session  user session which keeps all the user session data and also
@@ -319,7 +340,7 @@ public class JabberIqRoster
 	 * Method processes roster
 	 * <code>set</code> request related to dynamic roster. Sets extra data for
 	 * every
-	 * <em>item<em>element from processed packet with the DynamicRoster
+	 * <em>item</em>element from processed packet with the DynamicRoster
 	 * implementation and generates success packet or, in case of failure
 	 * generates error.
 	 *
@@ -499,8 +520,7 @@ public class JabberIqRoster
 					}
 					if ( session.isUserId( buddy.getBareJID() ) ){
 						results.offer( Authorization.NOT_ALLOWED.getResponseMessage( packet,
-																																				 "User can't add himself to the roster, RFC says NO.", true ) );
-
+													 "User can't add himself to the roster, RFC says NO.", true ) );
 						return;
 					}
 
@@ -596,7 +616,8 @@ public class JabberIqRoster
 							results.offer( Packet.packetInstance( pres, session.getJID(), buddy ) );
 
 							if ( autoAuthorize ){
-								Presence.sendPresence( StanzaType.subscribe, session.getJID(), buddy, results, null );
+								Presence.sendPresence( StanzaType.subscribe, session.getJID().copyWithoutResource(),
+																			 buddy.copyWithoutResource(), results, null );
 							}
 						}
 

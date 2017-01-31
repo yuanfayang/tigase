@@ -26,17 +26,8 @@ package tigase.conf;
 
 //~--- non-JDK imports --------------------------------------------------------
 
-import tigase.db.TigaseDBException;
-
-import tigase.xml.db.NodeNotFoundException;
-import tigase.xml.db.XMLDB;
-import tigase.xml.db.XMLDBException;
-
-//~--- JDK imports ------------------------------------------------------------
-
 import java.io.File;
 import java.io.IOException;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -47,6 +38,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import tigase.db.DBInitException;
+import tigase.db.TigaseDBException;
+import tigase.xml.db.NodeNotFoundException;
+import tigase.xml.db.XMLDB;
+import tigase.xml.db.XMLDBException;
 
 //~--- classes ----------------------------------------------------------------
 
@@ -170,13 +166,6 @@ public class ConfigXMLRepository extends ConfigurationCache {
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param compName
-	 * @param item
-	 */
 	@Override
 	public void addItem(String compName, ConfigItem item) {
 		try {
@@ -207,14 +196,6 @@ public class ConfigXMLRepository extends ConfigurationCache {
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 *
-	 * @throws TigaseDBException
-	 */
 	@Override
 	public Collection<ConfigItem> allItems() throws TigaseDBException {
 		Set<ConfigItem> result = new LinkedHashSet<ConfigItem>();
@@ -231,12 +212,6 @@ public class ConfigXMLRepository extends ConfigurationCache {
 
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String[] getCompNames() {
 		List<String> comps = xmldb.getAllNode1s();
@@ -248,16 +223,6 @@ public class ConfigXMLRepository extends ConfigurationCache {
 		return null;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param compName
-	 * @param node
-	 * @param key
-	 *
-	 * 
-	 */
 	@Override
 	public ConfigItem getItem(String compName, String node, String key) {
 		try {
@@ -277,14 +242,6 @@ public class ConfigXMLRepository extends ConfigurationCache {
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param compName
-	 *
-	 * 
-	 */
 	@Override
 	public Set<ConfigItem> getItemsForComponent(String compName) {
 		Set<ConfigItem> result = new LinkedHashSet<ConfigItem>();
@@ -307,15 +264,6 @@ public class ConfigXMLRepository extends ConfigurationCache {
 		return result;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param root
-	 * @param node
-	 *
-	 * 
-	 */
 	@Override
 	public String[] getKeys(final String root, final String node) {
 		try {
@@ -328,22 +276,14 @@ public class ConfigXMLRepository extends ConfigurationCache {
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param params
-	 *
-	 * @throws ConfigurationException
-	 */
 	@Override
-	public void init(Map<String, Object> params) throws ConfigurationException {
+	public void initRepository(String repo_uri, Map<String, String> params) throws DBInitException {
 		config_file = (String) params.get("-c");
 
 		try {
 			init();
 		} catch (XMLDBException ex) {
-			throw new ConfigurationException("Can not initialize configuration repository: ",
+			throw new DBInitException("Can not initialize configuration repository: ",
 																			 ex);
 		}
 	}
@@ -360,13 +300,6 @@ public class ConfigXMLRepository extends ConfigurationCache {
 		return cls.getPackage().getName().replace('.', '/');
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param compName
-	 * @param item
-	 */
 	@Override
 	public void removeItem(String compName, ConfigItem item) {
 		try {
@@ -380,23 +313,11 @@ public class ConfigXMLRepository extends ConfigurationCache {
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public int size() {
 		return (int) xmldb.getAllNode1sCount();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @throws TigaseDBException
-	 */
 	@Override
 	public void store() throws TigaseDBException {
 		try {

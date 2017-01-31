@@ -114,14 +114,8 @@ public class ConfiguratorOld
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param component
-	 */
 	@Override
-	public void componentAdded(Configurable component) {
+	public void componentAdded(Configurable component) throws ConfigurationException {
 		super.componentAdded(component);
 		if (log.isLoggable(Level.CONFIG)) {
 			log.config(" component: " + component.getName());
@@ -145,14 +139,6 @@ public class ConfiguratorOld
 		}    // end of if (component.getClass().getName().equals())
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param args
-	 *
-	 * @throws ConfigurationException
-	 */
 	@Override
 	public void init(String[] args) throws ConfigurationException {
 
@@ -211,10 +197,6 @@ public class ConfiguratorOld
 				.getParent());
 	}
 
-	/**
-	 * Method description
-	 *
-	 */
 	@Override
 	public void initializationCompleted() {
 		if (isInitializationComplete()) {
@@ -278,12 +260,6 @@ public class ConfiguratorOld
 		}      // end of if (print)
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param args
-	 */
 	@Override
 	public void parseArgs(final String[] args) {
 		defConfigParams.put(GEN_TEST, Boolean.FALSE);
@@ -445,13 +421,6 @@ public class ConfiguratorOld
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param results
-	 */
 	@Override
 	public void processPacket(final Packet packet, final Queue<Packet> results) {
 		if (!packet.isCommand()) {
@@ -580,8 +549,9 @@ public class ConfiguratorOld
 	 *
 	 *
 	 * @param name
+	 * @throws tigase.conf.ConfigurationException
 	 */
-	public void setup(String name) {
+	public void setup(String name) throws ConfigurationException {
 		Configurable component = getComponent(name);
 
 		setup(component);
@@ -634,56 +604,25 @@ public class ConfiguratorOld
 		return repository.getCompNames();
 	}
 
-	/**
-	 * Returns defualt configuration settings in case if there is no
-	 * config file.
-	 * @param params
-	 * 
-	 */
 	@Override
 	public Map<String, Object> getDefaults(Map<String, Object> params) {
 		Map<String, Object> defaults = super.getDefaults(params);
 
-		// System.out.println("Setting logging properties:\n" + defaults.toString());
 		defaults.put("demo-mode", demoMode);
 
 		return defaults;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public Map<String, Object> getDefConfigParams() {
 		return defConfigParams;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param from
-	 *
-	 * 
-	 */
 	@Override
 	public List<Element> getDiscoFeatures(JID from) {
 		return null;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param node
-	 * @param jid
-	 * @param from
-	 *
-	 * 
-	 */
 	@Override
 	public Element getDiscoInfo(String node, JID jid, JID from) {
 		if ((jid != null) && getName().equals(jid.getLocalpart()) && isAdmin(from)) {
@@ -693,16 +632,6 @@ public class ConfiguratorOld
 		return null;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param node
-	 * @param jid
-	 * @param from
-	 *
-	 * 
-	 */
 	@Override
 	public List<Element> getDiscoItems(String node, JID jid, JID from) {
 		if (isAdmin(from)) {
@@ -739,12 +668,6 @@ public class ConfiguratorOld
 
 	//~--- set methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param name
-	 */
 	@Override
 	public void setName(String name) {
 		super.setName(name);
@@ -770,12 +693,8 @@ public class ConfiguratorOld
 		serviceEntity.addItems(config_list, config_set);
 	}
 
-	/**
-	 * Sets all configuration properties for object.
-	 * @param props
-	 */
 	@Override
-	public void setProperties(final Map<String, Object> props) {
+	public void setProperties(final Map<String, Object> props) throws ConfigurationException {
 		super.setProperties(props);
 
 		// setupLogManager(props);

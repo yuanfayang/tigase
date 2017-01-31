@@ -26,30 +26,31 @@ package tigase.server.amp;
 
 //~--- non-JDK imports --------------------------------------------------------
 
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import tigase.conf.ConfigurationException;
 import tigase.disco.XMPPService;
-
 import tigase.server.AbstractMessageReceiver;
+import tigase.server.Packet;
+import tigase.server.ServerComponent;
+import tigase.server.XMPPServer;
 import tigase.server.amp.action.Alert;
+import tigase.server.amp.action.Broadcast;
 import tigase.server.amp.action.Drop;
 import tigase.server.amp.action.Notify;
 import tigase.server.amp.action.Store;
 import tigase.server.amp.cond.Deliver;
 import tigase.server.amp.cond.ExpireAt;
 import tigase.server.amp.cond.MatchResource;
-import tigase.server.Packet;
-
+import tigase.server.xmppsession.SessionManager;
+import tigase.server.xmppsession.SessionManagerHandler;
 import tigase.xml.Element;
-
 import tigase.xmpp.JID;
-
-//~--- JDK imports ------------------------------------------------------------
-
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.Map;
-import java.util.Queue;
 
 /**
  * Created: Apr 26, 2010 3:22:06 PM
@@ -76,48 +77,23 @@ public class AmpComponent
 	private Map<String, ConditionIfc> conditions = new ConcurrentSkipListMap<String,
 																									 ConditionIfc>();
 
+	protected final Broadcast broadcast = new Broadcast();
 	//~--- methods --------------------------------------------------------------
 
 	// ~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 *
-	 * 
-	 */
 	@Override
 	public boolean addOutPacket(Packet packet) {
 		return super.addOutPacket(packet);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packets
-	 *
-	 * 
-	 */
 	@Override
 	public boolean addOutPackets(Queue<Packet> packets) {
 		return super.addOutPackets(packets);
 	}
 
 	//~--- get methods ----------------------------------------------------------
-
-	// ~--- get methods ----------------------------------------------------------
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param params
-	 *
-	 * 
-	 */
+	
 	@Override
 	public Map<String, Object> getDefaults(Map<String, Object> params) {
 		Map<String, Object> defs = super.getDefaults(params);
@@ -150,48 +126,24 @@ public class AmpComponent
 			}
 		}
 
-		// for (ConditionIfc c : conditions.values()) {
-		// Map<String, Object> d = c.getDefaults(params);
-		//
-		// if (d != null) {
-		// defs.putAll(d);
-		// }
-		// }
+		Map<String,Object> d = broadcast.getDefaults(params);
+		if (d != null) {
+			defs.putAll(d);
+		}
+		
 		return defs;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String getDiscoCategoryType() {
 		return "generic";
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String getDiscoDescription() {
 		return "IM AMP Support";
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param node
-	 * @param jid
-	 * @param from
-	 *
-	 * 
-	 */
 	@Override
 	public Element getDiscoInfo(String node, JID jid, JID from) {
 		Element query = super.getDiscoInfo(node, jid, from);
@@ -239,20 +191,16 @@ public class AmpComponent
 
 	//~--- methods --------------------------------------------------------------
 
-	// ~--- methods --------------------------------------------------------------
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 */
 	@Override
 	public void processPacket(Packet packet) {
 		if (log.isLoggable(Level.FINEST)) {
 			log.finest("My packet: " + packet);
 		}
 
+		if (broadcast.preprocess(packet)) {
+			return;
+		}
+		
 		ActionIfc def = null;
 
 		if (packet.getAttributeStaticStr(AmpFeatureIfc.OFFLINE) == null) {
@@ -297,16 +245,8 @@ public class AmpComponent
 
 	//~--- set methods ----------------------------------------------------------
 
-	// ~--- set methods ----------------------------------------------------------
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param props
-	 */
 	@Override
-	public void setProperties(Map<String, Object> props) {
+	public void setProperties(Map<String, Object> props) throws ConfigurationException {
 		super.setProperties(props);
 		if (props.size() == 1) {
 
@@ -319,6 +259,7 @@ public class AmpComponent
 			a.setProperties(props, this);
 		}
 
+		broadcast.setProperties(props, this);
 		// for (ConditionIfc c : conditions.values()) {
 		// c.setProperties(props, this);
 		// }

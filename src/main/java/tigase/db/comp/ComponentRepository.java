@@ -26,12 +26,10 @@ package tigase.db.comp;
 
 //~--- non-JDK imports --------------------------------------------------------
 
-import tigase.db.TigaseDBException;
-
-//~--- JDK imports ------------------------------------------------------------
-
 import java.util.Collection;
 import java.util.Map;
+import tigase.db.Repository;
+import tigase.db.TigaseDBException;
 
 /**
  * A convenience interface for a unified access to component specific repository
@@ -39,14 +37,14 @@ import java.util.Map;
  * more like for storing Component dynamic configuration data. In simple cases
  * this data can be stored in configuration file, in more complex cases it can
  * be a database represented by UserRepository or even something else.
- * <p/>
+ * <br>
  * The repository is intended to store elements of a single type only. Each
  * element is identified by a unique key. All elements are cached in memory for
  * a fast retrieval so this kind of repository is recommended for small data
- * only when you need very fast and efficient access to all the information.<br/>
+ * only when you need very fast and efficient access to all the information.<br>
  * Some implementations however may behave differently and not cache all the
  * repository items in memory.
- * <p/>
+ * <br>
  * Created: Oct 3, 2009 1:46:25 PM
  *
  * @param <Item>
@@ -55,7 +53,7 @@ import java.util.Map;
  * @version $Rev$
  */
 public interface ComponentRepository<Item extends RepositoryItem>
-				extends Iterable<Item> {
+				extends Iterable<Item>, Repository {
 	/** Field description */
 	public static final String COMP_REPO_BIND = "comp_repo";
 
@@ -86,9 +84,20 @@ public interface ComponentRepository<Item extends RepositoryItem>
 	void addItem(Item item) throws TigaseDBException;
 
 	/**
+	 * The method adds a new or updates existing Item. It needs
+	 * to have all fields set correctly. After this method call is finished a new
+	 * added item must be available in the component repository. The method adds
+	 * the item to memory cache but not to a permanent storage.
+	 *
+	 * @param item
+	 *          a <code>Item</code> with all it's configuration parameters.
+	 */
+	void addItemNoStore(Item item);
+
+	/**
 	 * Returns a collection with all items stored in the repository.
 	 *
-	 * 
+	 *
 	 * @throws TigaseDBException
 	 */
 	Collection<Item> allItems() throws TigaseDBException;
@@ -102,6 +111,12 @@ public interface ComponentRepository<Item extends RepositoryItem>
 	 *         in the repository or <code>false</code> of it does not.
 	 */
 	boolean contains(String key);
+	
+	/**
+	 * Method destroys this instance of ComponentRepository releasing resources
+	 * allocated for this instance of ComponentRepository if possible
+	 */
+	void destroy();
 
 	//~--- get methods ----------------------------------------------------------
 

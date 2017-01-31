@@ -26,14 +26,6 @@ package tigase.server;
 
 //~--- non-JDK imports --------------------------------------------------------
 
-import tigase.annotations.TODO;
-
-import tigase.stats.StatisticsContainer;
-import tigase.stats.StatisticsList;
-import tigase.stats.StatisticType;
-
-import tigase.util.PatternComparator;
-import tigase.util.PriorityQueueAbstract;
 
 //~--- JDK imports ------------------------------------------------------------
 
@@ -44,10 +36,18 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
+import tigase.annotations.TODO;
+import tigase.conf.ConfigurationException;
+import tigase.stats.StatisticType;
+import tigase.stats.StatisticsContainer;
+import tigase.stats.StatisticsList;
+import tigase.util.PatternComparator;
+import tigase.util.PriorityQueueAbstract;
 
 /**
  * This is an archetype for all classes processing user-level packets. The
@@ -56,14 +56,14 @@ import java.util.regex.Pattern;
  * of the class can process normall user packets and administrator packets via
  * ad-hoc commands. Good examples of such components are <code>MUC</code>,
  * <code>PubSub</code>, <code>SessionManager</code>.
- * <p/>
+ * <br>
  * The class offers scripting API for administrator ad-hoc commands.
- * <p/>
+ * <br>
  * By default it internally uses priority queues which in some rare cases may
  * lead to packets reordering. When this happens and it is unacceptable for the
  * deployment non-priority queues can be used. The queues size is limited and
  * depends on the available memory size.
- * <p/>
+ * <br>
  * Packets are processed by <code>processPacket(Packet packet)</code> method
  * which is concurrently called from multiple threads.
  *
@@ -84,7 +84,7 @@ public abstract class AbstractMessageReceiver
 	/**
 	 * Configuration property default vakue with a default incoming packet filter
 	 * loaded by Tigase server.
-	 * <p/>
+	 * <br>
 	 * This is a comma-separated list of classes which should be loaded as packet
 	 * filters. The classes must implement <code>PacketFilterIfc</code> interface.
 	 */
@@ -101,7 +101,7 @@ public abstract class AbstractMessageReceiver
 
 	/**
 	 * A default value for max queue size property. The value is calculated at the
-	 * server startup time using following formula: <br/>
+	 * server startup time using following formula: <br>
 	 * <code>Runtime.getRuntime().maxMemory() / 400000L</code> You can change the
 	 * default queue size by setting a different value for the
 	 * <code>MAX_QUEUE_SIZE_PROP_KEY</code> property in the server configuration.
@@ -120,7 +120,7 @@ public abstract class AbstractMessageReceiver
 	/**
 	 * Configuration property default vakue with a default outgoing packet filter
 	 * loaded by Tigase server.
-	 * <p/>
+	 * <br>
 	 * This is a comma-separated list of classes which should be loaded as packet
 	 * filters. The classes must implement <code>PacketFilterIfc</code> interface.
 	 */
@@ -154,9 +154,6 @@ public abstract class AbstractMessageReceiver
 	// String added intentionally!!
 	// Don't change to AbstractMessageReceiver.class.getName()
 
-	/**
-	 * Variable <code>log</code> is a class logger.
-	 */
 	private static final Logger log = Logger.getLogger(
 			"tigase.debug.AbstractMessageReceiver");
 
@@ -171,11 +168,9 @@ public abstract class AbstractMessageReceiver
 	private long last_second_packets = 0;
 	private int  out_queues_size     = 1;
 
-	/** Field description */
-	protected int maxOutQueueSize = MAX_QUEUE_SIZE_PROP_VAL;
-
-	/** Field description */
+	protected int                    maxQueueSize          = MAX_QUEUE_SIZE_PROP_VAL;
 	protected int                    maxInQueueSize        = MAX_QUEUE_SIZE_PROP_VAL;
+	protected int                    maxOutQueueSize       = MAX_QUEUE_SIZE_PROP_VAL;
 	private QueueListener            out_thread            = null;
 	private long                     packetId              = 0;
 	private long                     packets_per_hour      = 0;
@@ -216,6 +211,19 @@ public abstract class AbstractMessageReceiver
 	private long                                                statSentPacketsOk     = 0;
 	private ArrayDeque<QueueListener>                           threadsQueue          =
 			null;
+	private final ThreadFactory									threadFactory		  =
+			new ThreadFactory() {
+
+					private final ThreadFactory internal = Executors.defaultThreadFactory();
+
+					@Override
+					public Thread newThread(Runnable r) {
+						Thread th = internal.newThread(r);
+						th.setName("scheduler_" + th.getName() + "-" + getName());
+						return th;
+					}
+
+				};
 	private final ConcurrentHashMap<String, PacketReceiverTask> waitingTasks =
 			new ConcurrentHashMap<String, PacketReceiverTask>(16, 0.75f, 4);
 	private final Set<Pattern> regexRoutings = new ConcurrentSkipListSet<Pattern>(
@@ -228,17 +236,17 @@ public abstract class AbstractMessageReceiver
 	 * Packets from the input queue are later passed to the
 	 * <code>processPacket(Packet)</code> method. This is a blocking method
 	 * waiting if necessary for the room if the queue is full.
-	 * <p/>
+	 * <br>
 	 * The method returns a <code>boolean</code> value of <code>true</code> if the
 	 * packet has been successfully added to the queue and <code>false</code>
 	 * otherwise.
-	 * <p/>
+	 * <br>
 	 * There can be many queues and many threads processing packets for the
 	 * component, however the method makes the best effort to guarantee that
 	 * packets are later processed in the correct order. For example that packets
 	 * for a single user always end up in the same exact queue. You can tweak the
 	 * packets distribution among threads by overwriting
-	 * <code>hashCodeForPacket(Packet)</code> method.<br/>
+	 * <code>hashCodeForPacket(Packet)</code> method.<br>
 	 * If there is <code>N</code> threads the packets are distributed among thread
 	 * using following logic:
 	 *
@@ -285,18 +293,18 @@ public abstract class AbstractMessageReceiver
 	/**
 	 * This is a variant of <code>addPacket(Packet)</code> method which adds
 	 * <code>Packet</code> to in the internal input queue without blocking.
-	 * <p/>
+	 * <br>
 	 * The method returns a <code>boolean</code> value of <code>true</code> if the
 	 * packet has been successful added to the queue and <code>false</code>
 	 * otherwise.
-	 * <p/>
+	 * <br>
 	 * Use of the non-blocking methods is not recommended for most of the
 	 * components implementations. The only component which is allowed to use them
 	 * is the server <code>MessageRouter</code> implementation which can not hang
 	 * on any method. This would cause a dead-lock in the application. All other
 	 * components must use blocking methods and wait if the system is under so
 	 * high load that it's queues are full.
-	 * <p/>
+	 * <br>
 	 * See <code>addPacket(Packet)</code> method's documentation for some more
 	 * details.
 	 *
@@ -337,12 +345,12 @@ public abstract class AbstractMessageReceiver
 
 	/**
 	 * This is a convenience method for adding all packets stored in given queue
-	 * to the component's internal input queue.<br/>
+	 * to the component's internal input queue.<br>
 	 * The method calls <code>addPacket(Packet)</code> in a loop for each packet
 	 * in the queue. If the call returns <code>true</code> then the packet is
 	 * removed from the given queue, otherwise the methods ends the loop and
 	 * returns <code>false</code>.
-	 * <p/>
+	 * <br>
 	 * Please note, if the method returns <code>true</code> it means that all the
 	 * packets from the queue passed as a parameter have been successfuly run
 	 * through the <code>addPacket(Packet)</code> method and the queue passed as a
@@ -391,7 +399,7 @@ public abstract class AbstractMessageReceiver
 	 * used by the <code>MessageRouter</code> to calculate packet's destination.
 	 * If the packet's destination address matches one of the component's routing
 	 * addresses the packet is added to the component's internal input queue.
-	 * <p/>
+	 * <br>
 	 * By default all components accept packets addressed to the componentId and
 	 * to:
 	 *
@@ -406,7 +414,7 @@ public abstract class AbstractMessageReceiver
 	 * </pre>
 	 *
 	 *        instead.
-	 *        <p/>
+	 *        <br>
 	 *        The routings are passed as Java regular expression strings are the
 	 *        extra addresses accepted by the component. In most cases this is
 	 *        used by the external component protocol implementations which can
@@ -444,6 +452,11 @@ public abstract class AbstractMessageReceiver
 
 		task.setScheduledFuture(future);
 	}
+	
+	public void addTimerTask(tigase.util.TimerTask task, long initialDelay, long period) {
+		ScheduledFuture<?> future = receiverScheduler.scheduleAtFixedRate(task, initialDelay, period, TimeUnit.MILLISECONDS);
+		task.setScheduledFuture(future);
+	}
 
 	/**
 	 * Method queues and executes all timer tasks on Timer SINGLE thread.
@@ -469,7 +482,7 @@ public abstract class AbstractMessageReceiver
 	/**
 	 * Utility method executed precisely every hour. A component can overwrite the
 	 * method to put own code to be executed at the regular intervals of time.
-	 * <p/>
+	 * <br>
 	 * Note, no extensive calculations should happen in this method nor long
 	 * lasting operations. It is essential that the method processing does not
 	 * exceed 1 hour. The overriding method must call the the super method first
@@ -483,7 +496,7 @@ public abstract class AbstractMessageReceiver
 	/**
 	 * Utility method executed precisely every minute. A component can overwrite
 	 * the method to put own code to be executed at the regular intervals of time.
-	 * <p/>
+	 * <br>
 	 * Note, no extensive calculations should happen in this method nor long
 	 * lasting operations. It is essential that the method processing does not
 	 * exceed 1 minute. The overriding method must call the the super method first
@@ -498,7 +511,7 @@ public abstract class AbstractMessageReceiver
 	/**
 	 * Utility method executed precisely every second. A component can overwrite
 	 * the method to put own code to be executed at the regular intervals of time.
-	 * <p/>
+	 * <br>
 	 * Note, no extensive calculations should happen in this method nor long
 	 * lasting operations. It is essential that the method processing does not
 	 * exceed 1 second. The overriding method must call the the super method first
@@ -513,7 +526,7 @@ public abstract class AbstractMessageReceiver
 	 * This method decides how incoming packets are distributed among processing
 	 * threads. Different components needs different distribution to efficient use
 	 * all threads and avoid packets re-ordering.
-	 * <p/>
+	 * <br>
 	 * If there are N processing threads, packets are distributed among threads
 	 * using following code:
 	 *
@@ -573,24 +586,22 @@ public abstract class AbstractMessageReceiver
 	}
 
 	/**
-	 * Method description
+	 * Concurrency control method. Returns preferable number of threads set for
+	 * this component.
 	 *
 	 *
-	 *
-	 *
-	 * @return a value of <code>int</code>
+	 * @return preferable number of threads set for this component.
 	 */
 	public int processingInThreads() {
 		return 1;
 	}
 
 	/**
-	 * Method description
+	 * Concurrency control method. Returns preferable number of threads set for
+	 * this component.
 	 *
 	 *
-	 *
-	 *
-	 * @return a value of <code>int</code>
+	 * @return preferable number of threads set for this component.
 	 */
 	public int processingOutThreads() {
 		return 1;
@@ -641,12 +652,12 @@ public abstract class AbstractMessageReceiver
 	 * This is the main <code>Packet</code> processing method. It is called
 	 * concurrently from many threads so implementing it in thread save manner is
 	 * essential. The method is called for each packet addressed to the component.
-	 * <p/>
+	 * <br>
 	 * Please note, the <code>Packet</code> instance may be processed by different
 	 * parts of the server, different components or plugins at the same time.
 	 * Therefore this is very important to tread the <code>Packet</code> instance
 	 * as unmodifiable object.
-	 * <p/>
+	 * <br>
 	 * Processing in this method is asynchronous, therefore there is no result
 	 * value. If there are some 'result' packets generated during processing, they
 	 * should be passed back using <code>addOutPacket(Packet)</code> method.
@@ -658,22 +669,11 @@ public abstract class AbstractMessageReceiver
 	 */
 	public abstract void processPacket(Packet packet);
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param results
-	 */
 	@Override
 	public final void processPacket(final Packet packet, final Queue<Packet> results) {
 		addPacketNB(packet);
 	}
 
-	/**
-	 * Method description
-	 *
-	 */
 	@Override
 	public void release() {
 		stop();
@@ -704,10 +704,6 @@ public abstract class AbstractMessageReceiver
 		return 1;
 	}
 
-	/**
-	 * Method description
-	 *
-	 */
 	@Override
 	public void start() {
 		if (log.isLoggable(Level.FINER)) {
@@ -789,7 +785,7 @@ public abstract class AbstractMessageReceiver
 	 * <code>Level.FINEST</code> assigned and must be put inside the level guard
 	 * to prevent generating them by the system monitor. The system monitor does
 	 * not collect <code>FINEST</code> statistics.
-	 * <p/>
+	 * <br>
 	 * Level guard code looks like the example below:
 	 *
 	 * <pre>
@@ -798,7 +794,7 @@ public abstract class AbstractMessageReceiver
 	 *   list.add(getName(), "Statistic description", stat_value, Level.FINEST);
 	 * }
 	 *
-	 * <pre>
+	 * </pre>
 	 * This way you make sure your extensive operation is not executed every second by the
 	 * monitoring system and does not affect the server performance.
 	 *
@@ -897,16 +893,6 @@ public abstract class AbstractMessageReceiver
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param address
-	 *
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
 	@Override
 	public boolean isInRegexRoutings(String address) {
 
@@ -939,6 +925,7 @@ public abstract class AbstractMessageReceiver
 	 *
 	 */
 	public void setMaxQueueSize(int maxQueueSize) {
+		this.maxQueueSize = maxQueueSize;
 		if ((this.maxInQueueSize != maxQueueSize) || (in_queues.size() == 0)) {
 
 			// out_queue = PriorityQueueAbstract.getPriorityQueue(pr_cache.length,
@@ -947,28 +934,29 @@ public abstract class AbstractMessageReceiver
 			// So real processing threads number of in_queues is processingThreads()/2
 			this.maxInQueueSize  = (maxQueueSize / processingInThreads()) * 2;
 			this.maxOutQueueSize = (maxQueueSize / processingOutThreads()) * 2;
+			log.log(Level.FINEST, "{0} maxQueueSize: {1}, maxInQueueSize: {2}, maxOutQueueSize: {3}", new Object[] {getName(), maxQueueSize, maxInQueueSize, maxOutQueueSize});
 			if (in_queues.size() == 0) {
 				for (int i = 0; i < in_queues_size; i++) {
 					PriorityQueueAbstract<Packet> queue = PriorityQueueAbstract.getPriorityQueue(
-							pr_cache.length, maxQueueSize);
+							pr_cache.length, maxInQueueSize);
 
 					in_queues.add(queue);
 				}
 			} else {
 				for (int i = 0; i < in_queues.size(); i++) {
-					in_queues.get(i).setMaxSize(maxQueueSize);
+					in_queues.get(i).setMaxSize(maxInQueueSize);
 				}
 			}
 			if (out_queues.size() == 0) {
 				for (int i = 0; i < out_queues_size; i++) {
 					PriorityQueueAbstract<Packet> queue = PriorityQueueAbstract.getPriorityQueue(
-							pr_cache.length, maxQueueSize);
+							pr_cache.length, maxOutQueueSize);
 
 					out_queues.add(queue);
 				}
 			} else {
 				for (int i = 0; i < out_queues.size(); i++) {
-					out_queues.get(i).setMaxSize(maxQueueSize);
+					out_queues.get(i).setMaxSize(maxOutQueueSize);
 				}
 			}
 
@@ -976,12 +964,6 @@ public abstract class AbstractMessageReceiver
 		}    // end of if (this.maxQueueSize != maxQueueSize)
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param name
-	 */
 	@Override
 	public void setName(String name) {
 		super.setName(name);
@@ -991,25 +973,14 @@ public abstract class AbstractMessageReceiver
 		setMaxQueueSize(maxInQueueSize);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param parent
-	 */
 	@Override
 	public void setParent(MessageReceiver parent) {
 		this.parent = parent;
 	}
 
-	/**
-	 * Sets all configuration properties for object.
-	 *
-	 * @param props
-	 */
 	@Override
 	@TODO(note = "Replace fixed filers loading with configurable options for that")
-	public void setProperties(Map<String, Object> props) {
+	public void setProperties(Map<String, Object> props) throws ConfigurationException {
 		super.setProperties(props);
 		if (props.get(MAX_QUEUE_SIZE_PROP_KEY) != null) {
 			int queueSize = (Integer) props.get(MAX_QUEUE_SIZE_PROP_KEY);
@@ -1024,7 +995,7 @@ public abstract class AbstractMessageReceiver
 
 				ScheduledExecutorService scheduler = receiverScheduler;
 
-				receiverScheduler = Executors.newScheduledThreadPool(threads);
+				receiverScheduler = Executors.newScheduledThreadPool(threads, threadFactory);
 				scheduler.shutdown();
 			}
 		}
@@ -1076,16 +1047,6 @@ public abstract class AbstractMessageReceiver
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 *
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
 	protected boolean addOutPacket(Packet packet) {
 		int queueIdx = Math.abs(hashCodeForPacket(packet) % out_queues_size);
 
@@ -1179,7 +1140,7 @@ public abstract class AbstractMessageReceiver
 	 *
 	 * @return a value of <code>boolean</code>
 	 */
-	protected boolean addOutPacketWithTimeout(Packet packet,
+	public boolean addOutPacketWithTimeout(Packet packet,
 			ReceiverTimeoutHandler handler, long delay, TimeUnit unit) {
 
 		// It is automatically added to collections and the Timer
@@ -1272,7 +1233,7 @@ public abstract class AbstractMessageReceiver
 		// out_thread.setName("out_" + getName());
 		// out_thread.start();
 		// } // end of if (thread == null || ! thread.isAlive())
-		receiverScheduler = Executors.newScheduledThreadPool(schedulerThreads_size);
+		receiverScheduler = Executors.newScheduledThreadPool(schedulerThreads_size, threadFactory);
 		receiverTasks     = new Timer(getName() + " tasks", true);
 		receiverTasks.scheduleAtFixedRate(new TimerTask() {
 			@Override
@@ -1378,10 +1339,6 @@ public abstract class AbstractMessageReceiver
 			handler.timeOutExpired(packet);
 		}
 
-		/**
-		 * Method description
-		 *
-		 */
 		@Override
 		public void run() {
 			handleTimeout();
@@ -1398,8 +1355,6 @@ public abstract class AbstractMessageReceiver
 		private PriorityQueueAbstract<Packet> queue;
 
 		//~--- constructors -------------------------------------------------------
-
-		// ~--- constructors -------------------------------------------------------
 		private QueueListener(PriorityQueueAbstract<Packet> q, QueueType type) {
 			this.queue = q;
 			this.type  = type;
@@ -1408,12 +1363,6 @@ public abstract class AbstractMessageReceiver
 
 		//~--- methods ------------------------------------------------------------
 
-		// ~--- methods ------------------------------------------------------------
-
-		/**
-		 * Method description
-		 *
-		 */
 		@Override
 		public void run() {
 			if (log.isLoggable(Level.FINEST)) {
@@ -1507,8 +1456,12 @@ public abstract class AbstractMessageReceiver
 					// log.log(Level.SEVERE, "Exception during packet processing: ", e);
 					// stopped = true;
 				} catch (Exception e) {
-					log.log(Level.SEVERE, "[" + getName() +
-							"] Exception during packet processing: " + packet, e);
+					if (!threadStopped)
+						log.log(Level.SEVERE, "[" + getName() +
+								"] Exception during packet processing: " + packet, e);
+					else {
+						//log.log(Level.FINEST, "[" + getName() + "] Stopping processing thread");
+					}
 				}    // end of try-catch
 			}      // end of while (! threadStopped)
 		}

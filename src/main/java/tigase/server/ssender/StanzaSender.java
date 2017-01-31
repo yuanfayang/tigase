@@ -32,6 +32,7 @@ import java.util.Timer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import tigase.conf.Configurable;
+import tigase.conf.ConfigurationException;
 import tigase.db.RepositoryFactory;
 import tigase.server.AbstractMessageReceiver;
 import tigase.server.Packet;
@@ -111,21 +112,11 @@ public class StanzaSender extends AbstractMessageReceiver implements Configurabl
 
 	// Implementation of tigase.server.ServerComponent
 
-	/**
-	 * Describe <code>release</code> method here.
-	 * 
-	 */
 	@Override
 	public void release() {
 		super.release();
 	}
 
-	/**
-	 * Describe <code>processPacket</code> method here.
-	 * 
-	 * @param packet
-	 *          a <code>Packet</code> value
-	 */
 	@Override
 	public void processPacket(final Packet packet) {
 		// do nothing, this component is to send packets not to receive
@@ -134,14 +125,8 @@ public class StanzaSender extends AbstractMessageReceiver implements Configurabl
 
 	// Implementation of tigase.conf.Configurable
 
-	/**
-	 * Describe <code>setProperties</code> method here.
-	 * 
-	 * @param props
-	 *          a <code>Map</code> value
-	 */
 	@Override
-	public void setProperties(final Map<String, Object> props) {
+	public void setProperties(final Map<String, Object> props) throws ConfigurationException {
 		super.setProperties(props);
 
 		if (props.size() == 1) {
@@ -181,13 +166,6 @@ public class StanzaSender extends AbstractMessageReceiver implements Configurabl
 		}
 	}
 
-	/**
-	 * Describe <code>getDefaults</code> method here.
-	 * 
-	 * @param params
-	 *          a <code>Map</code> value
-	 * @return a <code>Map</code> value
-	 */
 	@Override
 	public Map<String, Object> getDefaults(final Map<String, Object> params) {
 		Map<String, Object> defs = super.getDefaults(params);

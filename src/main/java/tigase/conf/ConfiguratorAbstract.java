@@ -114,6 +114,7 @@ public abstract class ConfiguratorAbstract
 
 	/** Field description */
 	public static final String PROPERTY_FILENAME_PROP_KEY = "--property-file";
+	public static final String PROPERTY_FILENAME_PROP_DEF = "etc/init.properties";
 
 	/**
 	 * Field description
@@ -148,13 +149,13 @@ public abstract class ConfiguratorAbstract
 	private boolean        setup_in_progress = false;
 
 	/**
-	 * Configuration settings read from the init.properties file or any other
+	 * Configuration settings read from the initRepository.properties file or any other
 	 * source which provides startup configuration.
 	 */
 	private List<String> initSettings = new LinkedList<String>();
 
 	/**
-	 * Properties from the command line parameters and init.properties file or any
+	 * Properties from the command line parameters and initRepository.properties file or any
 	 * other source which are used to generate default configuration. All the
 	 * settings starting with '--'
 	 */
@@ -168,26 +169,14 @@ public abstract class ConfiguratorAbstract
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param component
-	 */
 	@Override
-	public void componentAdded(Configurable component) {
+	public void componentAdded(Configurable component) throws ConfigurationException {
 		if (log.isLoggable(Level.CONFIG)) {
 			log.log(Level.CONFIG, " component: {0}", component.getName());
 		}
 		setup(component);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param component
-	 */
 	@Override
 	public void componentRemoved(Configurable component) {}
 
@@ -230,7 +219,15 @@ public abstract class ConfiguratorAbstract
 		}
 		configRepo.addRepoChangeListener(this);
 		configRepo.setDefHostname(getDefHostName().getDomain());
-		configRepo.init(initProperties);
+		try {
+			// loss of generic types is intentional to make parameter match API
+			// and internally all requests are done like:
+			// String x = (String) initProperties.get("param");
+			// so it should be safe to loss generic types of Map
+			configRepo.initRepository(null, (Map) initProperties);
+		} catch (DBInitException ex) {
+			throw new ConfigurationException(ex.getMessage(), ex);
+		}
 		for (String prop : initSettings) {
 			ConfigItem item = configRepo.getItemInstance();
 
@@ -245,7 +242,7 @@ public abstract class ConfiguratorAbstract
 		}
 
 		// Not sure if this is the correct pleace to initialize monitoring
-		// maybe it should be initialized init initializationCompleted but
+		// maybe it should be initialized initRepository initializationCompleted but
 		// Then some stuff might be missing. Let's try to do it here for now
 		// and maybe change it later.
 		String property_filenames = (String) initProperties.get(PROPERTY_FILENAME_PROP_KEY);
@@ -258,12 +255,6 @@ public abstract class ConfiguratorAbstract
 		}
 	}
 
-	/**
-	 * Initialize a mapping of key/value pairs which can be used in scripts
-	 * loaded by the server
-	 *
-	 * @param binds A mapping of key/value pairs, all of whose keys are Strings.
-	 */
 	@Override
 	public void initBindings(Bindings binds) {
 		super.initBindings(binds);
@@ -271,10 +262,6 @@ public abstract class ConfiguratorAbstract
 		binds.put(INIT_PROPERTIES_MAP_BIND, initProperties);
 	}
 
-	/**
-	 * Method description
-	 *
-	 */
 	@Override
 	public void initializationCompleted() {
 		if (isInitializationComplete()) {
@@ -295,12 +282,6 @@ public abstract class ConfiguratorAbstract
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param item
-	 */
 	@Override
 	public void itemAdded(ConfigItem item) {
 
@@ -309,12 +290,6 @@ public abstract class ConfiguratorAbstract
 		// log.log(Level.INFO, "Adding configuration item not supported yet: {0}", item);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param item
-	 */
 	@Override
 	public void itemRemoved(ConfigItem item) {
 
@@ -323,12 +298,6 @@ public abstract class ConfiguratorAbstract
 		log.log(Level.INFO, "Removing configuration item not supported yet: {0}", item);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param item
-	 */
 	@Override
 	public void itemUpdated(ConfigItem item) {
 		log.log(Level.INFO, "Updating configuration item: {0}", item);
@@ -339,7 +308,12 @@ public abstract class ConfiguratorAbstract
 			Map<String, Object> prop = Collections.singletonMap(item.getConfigKey(), item
 					.getConfigVal());
 
-			component.setProperties(prop);
+			try {
+				component.setProperties(prop);
+			}
+			catch (ConfigurationException ex) {
+				log.log(Level.SEVERE, "Component reconfiguration failed: " + ex.getMessage(), ex);
+			}
 		} else {
 			log.log(Level.WARNING, "Cannot find component for configuration item: {0}", item);
 		}
@@ -402,8 +376,24 @@ public abstract class ConfiguratorAbstract
 
 		String property_filenames = (String) initProperties.get(PROPERTY_FILENAME_PROP_KEY);
 
+		// if no property file was specified then use default one.
+		if (property_filenames == null) {
+			property_filenames = PROPERTY_FILENAME_PROP_DEF;
+				log.log(Level.WARNING, "No property file not specified! Using default one {0}",
+						property_filenames);
+		}
+
 		if (property_filenames != null) {
 			String[] prop_files = property_filenames.split(",");
+
+			if ( prop_files.length == 1 ){
+				File f = new File( prop_files[0] );
+				if ( !f.exists() ){
+					log.log( Level.WARNING, "Provided property file {0} does NOT EXISTS! Using default one {1}",
+									 new String[] { f.getAbsolutePath(), PROPERTY_FILENAME_PROP_DEF } );
+					prop_files[0] = PROPERTY_FILENAME_PROP_DEF;
+				}
+			}
 
 			for (String property_filename : prop_files) {
 				log.log(Level.CONFIG, "Loading initial properties from property file: {0}",
@@ -494,7 +484,7 @@ public abstract class ConfiguratorAbstract
 	 *
 	 * @param component
 	 */
-	public void setup(Configurable component) {
+	public void setup(Configurable component) throws ConfigurationException {
 
 		// Try to avoid recursive execution of the method
 		if (component == this) {
@@ -555,13 +545,6 @@ public abstract class ConfiguratorAbstract
 
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Returns default configuration settings in case if there is no configuration
-	 * file.
-	 *
-	 * @param params
-	 * 
-	 */
 	@Override
 	public Map<String, Object> getDefaults(Map<String, Object> params) {
 		Map<String, Object> defaults = super.getDefaults(params);
@@ -614,9 +597,9 @@ public abstract class ConfiguratorAbstract
 		}
 		defaults.put(RepositoryFactory.AUTH_DOMAIN_POOL_CLASS_PROP_KEY, repo_pool);
 
-		String user_repo_class = RepositoryFactory.DUMMY_REPO_CLASS_PROP_VAL;
+		String user_repo_class = null;//RepositoryFactory.DUMMY_REPO_CLASS_PROP_VAL;
 		String user_repo_url   = RepositoryFactory.DERBY_REPO_URL_PROP_VAL;
-		String auth_repo_class = RepositoryFactory.DUMMY_REPO_CLASS_PROP_VAL;
+		String auth_repo_class = null;//RepositoryFactory.DUMMY_REPO_CLASS_PROP_VAL;
 		String auth_repo_url   = RepositoryFactory.DERBY_REPO_URL_PROP_VAL;
 
 		if (params.get(RepositoryFactory.GEN_USER_DB) != null) {
@@ -663,9 +646,11 @@ public abstract class ConfiguratorAbstract
 			defaults.put(RepositoryFactory.DATA_REPO_POOL_SIZE_PROP_KEY, RepositoryFactory
 					.AUTH_REPO_POOL_SIZE_PROP_VAL);
 		}
-		defaults.put(RepositoryFactory.USER_REPO_CLASS_PROP_KEY, user_repo_class);
+		if (user_repo_class != null)
+			defaults.put(RepositoryFactory.USER_REPO_CLASS_PROP_KEY, user_repo_class);
 		defaults.put(RepositoryFactory.USER_REPO_URL_PROP_KEY, user_repo_url);
-		defaults.put(RepositoryFactory.AUTH_REPO_CLASS_PROP_KEY, auth_repo_class);
+		if (auth_repo_class != null)
+			defaults.put(RepositoryFactory.AUTH_REPO_CLASS_PROP_KEY, auth_repo_class);
 		defaults.put(RepositoryFactory.AUTH_REPO_URL_PROP_KEY, auth_repo_url);
 
 		List<String> user_repo_domains = new ArrayList<String>(10);
@@ -770,14 +755,6 @@ public abstract class ConfiguratorAbstract
 		return configRepo.getProperties(nodeId);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param component
-	 *
-	 * 
-	 */
 	@Override
 	public boolean isCorrectType(ServerComponent component) {
 		return component instanceof Configurable;
@@ -785,13 +762,8 @@ public abstract class ConfiguratorAbstract
 
 	//~--- set methods ----------------------------------------------------------
 
-	/**
-	 * Sets all configuration properties for object.
-	 *
-	 * @param props
-	 */
 	@Override
-	public void setProperties(Map<String, Object> props) {
+	public void setProperties(Map<String, Object> props) throws ConfigurationException {
 		if (props.size() == 0) {
 			log.log(Level.WARNING,
 					"Properties size is 0, incorrect system state, probably OSGI mode and configuration is not yet loaded.");
@@ -814,21 +786,6 @@ public abstract class ConfiguratorAbstract
 		configRepo.setProperties(props);
 		TLSUtil.configureSSLContext(props);
 
-		int user_repo_pool_size;
-		int auth_repo_pool_size;
-
-		try {
-			user_repo_pool_size = Integer.parseInt((String) props.get(RepositoryFactory
-					.USER_REPO_POOL_SIZE_PROP_KEY));
-		} catch (Exception e) {
-			user_repo_pool_size = RepositoryFactory.USER_REPO_POOL_SIZE_PROP_VAL;
-		}
-		try {
-			auth_repo_pool_size = Integer.parseInt((String) props.get(RepositoryFactory
-					.AUTH_REPO_POOL_SIZE_PROP_KEY));
-		} catch (Exception e) {
-			auth_repo_pool_size = RepositoryFactory.AUTH_REPO_POOL_SIZE_PROP_VAL;
-		}
 
 		String[] user_repo_domains = (String[]) props.get(RepositoryFactory
 				.USER_REPO_DOMAINS_PROP_KEY);
@@ -863,7 +820,7 @@ public abstract class ConfiguratorAbstract
 		if (user_repo_domains != null) {
 			for (String domain : user_repo_domains) {
 				try {
-					addUserRepo(props, domain, user_repo_pool_size);
+					addUserRepo(props, domain);
 				} catch (Exception e) {
 					log.log(Level.SEVERE, "Can't initialize user repository for domain: " + domain,
 							e);
@@ -872,7 +829,7 @@ public abstract class ConfiguratorAbstract
 		}
 		if (user_repository == null) {
 			try {
-				addUserRepo(props, null, user_repo_pool_size);
+				addUserRepo(props, null);
 			} catch (Exception e) {
 				log.log(Level.SEVERE, "Can't initialize user default repository: ", e);
 			}
@@ -880,7 +837,7 @@ public abstract class ConfiguratorAbstract
 		if (auth_repo_domains != null) {
 			for (String domain : auth_repo_domains) {
 				try {
-					addAuthRepo(props, domain, auth_repo_pool_size);
+					addAuthRepo(props, domain);
 				} catch (Exception e) {
 					log.log(Level.SEVERE, "Can't initialize user repository for domain: " + domain,
 							e);
@@ -889,7 +846,7 @@ public abstract class ConfiguratorAbstract
 		}
 		if (auth_repository == null) {
 			try {
-				addAuthRepo(props, null, auth_repo_pool_size);
+				addAuthRepo(props, null);
 			} catch (Exception e) {
 				log.log(Level.SEVERE, "Can't initialize auth default repository: ", e);
 			}
@@ -898,7 +855,7 @@ public abstract class ConfiguratorAbstract
 
 	//~--- methods --------------------------------------------------------------
 
-	private void addAuthRepo(Map<String, Object> props, String domain, int pool_size)
+	private void addAuthRepo(Map<String, Object> props, String domain)
 					throws DBInitException, ClassNotFoundException, InstantiationException,
 							IllegalAccessException {
 		Map<String, String> params = getRepoParams(props, RepositoryFactory
@@ -912,11 +869,6 @@ public abstract class ConfiguratorAbstract
 				 ? ""
 				 : "/" + domain));
 
-		if (params.get(RepositoryFactory.AUTH_REPO_POOL_SIZE_PROP_KEY) == null) {
-			params.put(RepositoryFactory.AUTH_REPO_POOL_SIZE_PROP_KEY, String.valueOf(
-					pool_size));
-		}
-
 		AuthRepository repo = RepositoryFactory.getAuthRepository(cls_name, conn_url, params);
 
 		if ((domain == null) || domain.trim().isEmpty()) {
@@ -927,13 +879,13 @@ public abstract class ConfiguratorAbstract
 			auth_repo_impl.addRepo(domain, repo);
 		}
 		log.log(Level.INFO,
-				"[{0}] Initialized {1} as user auth repository pool: {2}, url: {3}",
+				"[{0}] Initialized {1} as user auth repository pool, url: {3}",
 				new Object[] { ((domain != null)
 				? domain
-				: "DEFAULT"), cls_name, pool_size, conn_url });
+				: "DEFAULT"), cls_name, conn_url });
 	}
 
-	private void addUserRepo(Map<String, Object> props, String domain, int pool_size)
+	private void addUserRepo(Map<String, Object> props, String domain)
 					throws DBInitException, ClassNotFoundException, InstantiationException,
 							IllegalAccessException {
 		Map<String, String> params = getRepoParams(props, RepositoryFactory
@@ -947,10 +899,6 @@ public abstract class ConfiguratorAbstract
 				 ? ""
 				 : "/" + domain));
 
-		if (params.get(RepositoryFactory.USER_REPO_POOL_SIZE_PROP_KEY) == null) {
-			params.put(RepositoryFactory.USER_REPO_POOL_SIZE_PROP_KEY, String.valueOf(
-					pool_size));
-		}
 
 		UserRepository repo = RepositoryFactory.getUserRepository(cls_name, conn_url, params);
 
@@ -961,10 +909,10 @@ public abstract class ConfiguratorAbstract
 		} else {
 			user_repo_impl.addRepo(domain, repo);
 		}
-		log.log(Level.INFO, "[{0}] Initialized {1} as user repository pool:, {2} url: {3}",
+		log.log(Level.INFO, "[{0}] Initialized {1} as user repository pool, url: {2}",
 				new Object[] { ((domain != null)
 				? domain
-				: "DEFAULT"), cls_name, pool_size, conn_url });
+				: "DEFAULT"), cls_name, conn_url });
 	}
 
 	private void initMonitoring(String settings, String configDir) {

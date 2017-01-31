@@ -29,12 +29,15 @@ package tigase.cluster.repo;
 import tigase.db.comp.ConfigRepository;
 
 import tigase.sys.TigaseRuntime;
-
 import tigase.util.DNSResolver;
 
-//~--- JDK imports ------------------------------------------------------------
-
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import tigase.db.DBInitException;
+
+import tigase.sys.ShutdownHook;
 
 /**
  * Class description
@@ -44,7 +47,11 @@ import java.util.Map;
  * @author         <a href="mailto:artur.hefczyc@tigase.org">Artur Hefczyc</a>
  */
 public class ClConConfigRepository
-				extends ConfigRepository<ClusterRepoItem> {
+		extends ConfigRepository<ClusterRepoItem>
+		implements ShutdownHook {
+
+	private static final Logger log = Logger.getLogger(ClConConfigRepository.class.getName());
+
 	/** Field description */
 	public static final String AUTORELOAD_INTERVAL_PROP_KEY = "repo-autoreload-interval";
 
@@ -53,49 +60,37 @@ public class ClConConfigRepository
 
 	//~--- fields ---------------------------------------------------------------
 
-	private long autoreload_interval = AUTORELOAD_INTERVAL_PROP_VAL;
+	protected long autoreload_interval = AUTORELOAD_INTERVAL_PROP_VAL;
+	protected long lastReloadTime = 0;
+	protected long lastReloadTimeFactor = 10;
 
+	@Override
+	public void destroy() {
+		// Nothing to do
+	}
+	
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String[] getDefaultPropetyItems() {
 		return ClConRepoDefaults.getDefaultPropetyItems();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
+	@Override
+	public String getName() {
+		return "Cluster repository clean-up";
+	}
+
 	@Override
 	public String getPropertyKey() {
 		return ClConRepoDefaults.getPropertyKey();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String getConfigKey() {
 		return ClConRepoDefaults.getConfigKey();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public ClusterRepoItem getItemInstance() {
 		return ClConRepoDefaults.getItemInstance();
@@ -103,10 +98,11 @@ public class ClConConfigRepository
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 */
+	@Override
+	public void initRepository(String resource_uri, Map<String, String> params) throws DBInitException {
+		// Nothing to do
+	}
+	
 	@Override
 	public void reload() {
 		super.reload();
@@ -124,29 +120,14 @@ public class ClConConfigRepository
 		storeItem(item);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param item
-	 */
 	public void itemLoaded(ClusterRepoItem item) {
-		if (System.currentTimeMillis() - item.getLastUpdate() <= 5000 * autoreload_interval) {
+		if (System.currentTimeMillis() - item.getLastUpdate() <= 5000 * autoreload_interval && clusterRecordValid(item)) {
 			addItem(item);
 		} else {
 			removeItem(item.getHostname());
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param oldItem
-	 * @param newItem
-	 *
-	 * 
-	 */
 	@Override
 	public boolean itemChanged(ClusterRepoItem oldItem, ClusterRepoItem newItem) {
 		return !oldItem.getPassword().equals(newItem.getPassword()) || (oldItem
@@ -155,13 +136,6 @@ public class ClConConfigRepository
 
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param defs
-	 * @param params
-	 */
 	@Override
 	public void getDefaults(Map<String, Object> defs, Map<String, Object> params) {
 		super.getDefaults(defs, params);
@@ -185,29 +159,33 @@ public class ClConConfigRepository
 
 	//~--- set methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param props
-	 */
 	@Override
 	public void setProperties(Map<String, Object> props) {
 		super.setProperties(props);
 		autoreload_interval = (Long) props.get(AUTORELOAD_INTERVAL_PROP_KEY);
 		setAutoloadTimer(autoreload_interval);
+		TigaseRuntime.getTigaseRuntime().addShutdownHook(this);
+	}
+
+	@Override
+	public String shutdown() {
+		String host = DNSResolver.getDefaultHostname();
+		removeItem( host );
+		return "== " + "Removing cluster_nodes item: " + host + "\n";
 	}
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param item
-	 */
 	public void storeItem(ClusterRepoItem item) {}
+
+	private boolean clusterRecordValid( ClusterRepoItem item ) {
+
+		// we ignore faulty addresses
+		boolean isCorrect = !item.getHostname().equalsIgnoreCase( "localhost" );
+
+		if ( !isCorrect && log.isLoggable( Level.FINE ) ){
+			log.log( Level.FINE, "Incorrect entry in cluster table, skipping: {0}", item );
+		}
+		return isCorrect;
+	}
 }
-
-
-//~ Formatted in Tigase Code Convention on 13/03/11

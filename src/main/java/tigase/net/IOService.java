@@ -26,9 +26,33 @@ package tigase.net;
 
 //~--- non-JDK imports --------------------------------------------------------
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.CharBuffer;
+import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.CoderResult;
+import java.nio.charset.MalformedInputException;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.TrustManager;
 import tigase.cert.CertCheckResult;
 import tigase.cert.CertificateUtil;
-
 import tigase.io.BufferUnderflowException;
 import tigase.io.IOInterface;
 import tigase.io.SocketIO;
@@ -37,43 +61,9 @@ import tigase.io.TLSIO;
 import tigase.io.TLSUtil;
 import tigase.io.TLSWrapper;
 import tigase.io.ZLibIO;
-
 import tigase.stats.StatisticsList;
-
-import tigase.xmpp.JID;
-
-//~--- JDK imports ------------------------------------------------------------
-
-import java.io.IOException;
-
-import java.net.Socket;
-
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.channels.SocketChannel;
-import java.nio.CharBuffer;
-import java.nio.charset.Charset;
-import java.nio.charset.CharsetDecoder;
-import java.nio.charset.CharsetEncoder;
-import java.nio.charset.CoderResult;
-import java.nio.charset.MalformedInputException;
-
-import java.security.cert.Certificate;
-import java.security.cert.X509Certificate;
-
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.Map;
-
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLPeerUnverifiedException;
-import javax.net.ssl.TrustManager;
 import tigase.util.IOListener;
+import tigase.xmpp.JID;
 
 /**
  * <code>IOService</code> offers thread safe
@@ -81,7 +71,7 @@ import tigase.util.IOListener;
  * methods can be called simultaneously like
  * <code>stop()</code>,
  * <code>getProtocol()</code> or
- * <code>isConnected()</code>. <br/> It is recommended that developers extend
+ * <code>isConnected()</code>. <br> It is recommended that developers extend
  * <code>AbsractServerService</code> rather then implement
  * <code>ServerService</code> interface directly. <p> If you directly implement
  * <code>ServerService</code> interface you must take care about
@@ -108,6 +98,11 @@ public abstract class IOService<RefObject>
 	 * Field description
 	 */
 	public static final String CERT_CHECK_RESULT = "cert-check-result";
+	
+	/**
+	 * Field description
+	 */
+	public static final String CERT_REQUIRED_DOMAIN = "cert-required-domain";
 
 	/**
 	 * Field description
@@ -242,14 +237,6 @@ public abstract class IOService<RefObject>
 		setLastTransferTime();
 	}
 
-	/**
-	 * Method
-	 * <code>run</code> is used to perform
-	 *
-	 *
-	 * 
-	 * @throws IOException
-	 */
 	@Override
 	public IOService<?> call() throws IOException {
 		writeData(null);
@@ -268,6 +255,13 @@ public abstract class IOService<RefObject>
 					}    // end of if (receivedPackets.size() > 0)
 				} finally {
 					readInProgress.unlock();
+					if (!isConnected()) {
+						// added to sooner detect disconnection of peer - ie. client
+						if (log.isLoggable(Level.FINEST)) {
+							log.log(Level.FINEST, "{0}, stopping connection due to the fact that it was disconnected, forceStop()", toString());
+						}
+						forceStop();
+					}
 				}
 			}
 		}
@@ -338,16 +332,30 @@ public abstract class IOService<RefObject>
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param wrapper
-	 */
 	@Override
 	public void handshakeCompleted(TLSWrapper wrapper) {
+		String reqCertDomain = (String) getSessionData().get(CERT_REQUIRED_DOMAIN);
 		CertCheckResult certCheckResult = wrapper.getCertificateStatus(false);
-
+		if (reqCertDomain != null) { 
+			// if reqCertDomain is set then verify if certificate got from server
+			// is allowed for reqCertDomain
+			try {
+				Certificate[] certs = wrapper.getTlsEngine().getSession()
+						.getPeerCertificates();
+				if (certs != null && certs.length > 0) {
+					Certificate peerCert = certs[0];
+					if (log.isLoggable(Level.FINEST)) {
+						log.log(Level.FINEST, "{0}, TLS handshake veryfing if certificate from connection matches domain {1}", 
+								new Object[]{this, reqCertDomain});
+					}
+					if (!CertificateUtil.verifyCertificateForDomain((X509Certificate) peerCert, reqCertDomain)) {
+						certCheckResult = CertCheckResult.invalid;
+					}
+				}
+			} catch (Exception e) {
+				certCheckResult = CertCheckResult.invalid;
+			}
+		}
 		sessionData.put(CERT_CHECK_RESULT, certCheckResult);
 		if (log.isLoggable(Level.FINEST)) {
 			log.log(Level.FINEST, "{0}, TLS handshake completed: {1}", new Object[] { this,
@@ -393,8 +401,16 @@ public abstract class IOService<RefObject>
 			throw new IllegalStateException("SSL mode is already activated.");
 		}
 
-		TLSWrapper wrapper = new TLSWrapper(TLSUtil.getSSLContext("SSL", (String) sessionData.get(HOSTNAME_KEY), clientMode),
-				this, clientMode, wantClientAuth);
+		String tls_hostname = null;
+		int port = 0;
+		if (clientMode) {
+			tls_hostname = (String) this.getSessionData().get("remote-host");
+			if (tls_hostname == null) 
+				tls_hostname = (String) this.getSessionData().get("remote-hostname");
+			port = ((InetSocketAddress) socketIO.getSocketChannel().getRemoteAddress()).getPort();
+		}
+		TLSWrapper wrapper = new TLSWrapper(TLSUtil.getSSLContext("SSL", tls_hostname, clientMode),
+				this, tls_hostname, port, clientMode, wantClientAuth);
 
 		socketIO = new TLSIO(socketIO, wrapper, byteOrder());
 		setLastTransferTime();
@@ -428,7 +444,16 @@ public abstract class IOService<RefObject>
 			stop();
 		} else {
 			String tls_hostname = (String) sessionData.get(HOSTNAME_KEY);
-
+			int port = 0;
+			if (clientMode) {
+				port = ((InetSocketAddress) socketIO.getSocketChannel().getRemoteAddress()).getPort();
+				if (tls_hostname == null) {
+					tls_hostname = (String) this.getSessionData().get("remote-host");
+					if (tls_hostname == null) 
+						tls_hostname = (String) this.getSessionData().get("remote-hostname");
+				}
+			}
+			
 			if (log.isLoggable(Level.FINEST)) {
 				log.log(Level.FINEST, "{0}, Starting TLS for domain: {1}", new Object[] { this,
 						tls_hostname });
@@ -443,7 +468,7 @@ public abstract class IOService<RefObject>
 				sslContext = TLSUtil.getSSLContext("TLS", tls_hostname, clientMode);
 			}
 
-			TLSWrapper wrapper = new TLSWrapper(sslContext, this, clientMode, wantClientAuth);
+			TLSWrapper wrapper = new TLSWrapper(sslContext, this, tls_hostname, port, clientMode, wantClientAuth);
 
 			socketIO = new TLSIO(socketIO, wrapper, byteOrder());
 			setLastTransferTime();
@@ -479,12 +504,6 @@ public abstract class IOService<RefObject>
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String toString() {
 		return getConnectionId() + ", type: " + connectionType + ", Socket: " + socketIO;
@@ -597,12 +616,12 @@ public abstract class IOService<RefObject>
 
 	/**
 	 * Method returns local port of opened socket
-	 *
-	 * @return
+	 * 
+	 * @return 
 	 */
 	public int getLocalPort() {
-        Socket sock = socketIO.getSocketChannel().socket();
-        return sock.getLocalPort();
+		Socket sock = socketIO.getSocketChannel().socket();
+		return sock.getLocalPort();
 	}
 	
 	/**

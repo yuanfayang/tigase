@@ -146,6 +146,7 @@ public class MessageRouterConfig {
 		COMP_CLUS_MAP.put(MONITOR_CLASS_NAME, MONITOR_CLUST_CLASS_NAME);
 		COMP_CLUS_MAP.put(WS2S_CLASS_NAME, WS2S_CLUST_CLASS_NAME);
 		COMP_CLUS_MAP.put(VHOST_MAN_CLASS_NAME, VHOST_MAN_CLUST_CLASS_NAME);
+		COMP_CLUS_MAP.put(AMP_CLASS_NAME, AMP_CLUST_CLASS_NAME);
 	}
 
 	//~--- fields ---------------------------------------------------------------
@@ -188,7 +189,7 @@ public class MessageRouterConfig {
 			cls = ModulesManagerImpl.getInstance().getServerComponentClass(cls_name);
 			if (((cls == null) && (!XMPPServer.isOSGi() || COMPONENT_CLASSES.containsValue(
 					cls_name) || COMP_CLUS_MAP.containsValue(cls_name))) || EXT_COMP_CLASS_NAME
-					.equals(cls_name)) {
+					.equals(cls_name) || "tigase.cluster.VirtualComponent".equals(cls_name)) {
 				cls = (Class<? extends ServerComponent>) this.getClass().getClassLoader()
 						.loadClass(cls_name);
 			}
@@ -414,7 +415,7 @@ public class MessageRouterConfig {
 		cls = ModulesManagerImpl.getInstance().getServerComponent(cls_name);
 		if (((cls == null) && (!XMPPServer.isOSGi() || COMPONENT_CLASSES.containsValue(
 				cls_name) || COMP_CLUS_MAP.containsValue(cls_name))) || EXT_COMP_CLASS_NAME
-				.equals(cls_name)) {
+				.equals(cls_name)  || "tigase.cluster.VirtualComponent".equals(cls_name)) {
 			cls = (ServerComponent) this.getClass().getClassLoader().loadClass(cls_name)
 					.newInstance();
 		}
@@ -504,7 +505,8 @@ public class MessageRouterConfig {
 				return true;
 			}
 			if (XMPPServer.isOSGi()
-					&& !(COMPONENT_CLASSES.containsValue(cls_name) || COMP_CLUS_MAP.containsValue(cls_name) || EXT_COMP_CLASS_NAME.equals(cls_name))) {
+					&& !(COMPONENT_CLASSES.containsValue(cls_name) || COMP_CLUS_MAP.containsValue(cls_name) 
+					|| EXT_COMP_CLASS_NAME.equals(cls_name) || "tigase.cluster.VirtualComponent".equals(cls_name))) {
 				if (log.isLoggable(Level.WARNING))
 					log.log(Level.WARNING, "Can't load component " + name + ": " + cls_name + " is external class.");
 				return false;

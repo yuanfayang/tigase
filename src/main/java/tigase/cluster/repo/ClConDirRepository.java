@@ -37,15 +37,17 @@ import java.io.FileFilter;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.Map;
+import tigase.db.DBInitException;
+import tigase.db.Repository;
 
 /**
  *
  * @author kobit
  */
+@Repository.Meta( supportedUris = { "file://.*" } )
 public class ClConDirRepository
 				extends ClConConfigRepository
 				implements ClusterRepoConstants {
@@ -65,29 +67,28 @@ public class ClConDirRepository
 	private File      repo_dir  = new File(REPO_URI_DB_DEF_VAL);
 	private DirFilter dirFilter = new DirFilter();
 
+	@Override
+	public void destroy() {
+		// Nothing to do here
+		super.destroy();
+	}
+	
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param defs
-	 * @param params
-	 */
 	@Override
 	public void getDefaults(Map<String, Object> defs, Map<String, Object> params) {
 		super.getDefaults(defs, params);
 		defs.put(REPO_URI_PROP_KEY, REPO_URI_DB_DEF_VAL);
 	}
 
+	@Override
+	public void initRepository(String conn_str, Map<String, String> params) throws DBInitException {
+		// Nothing to do here
+		super.initRepository(conn_str, params);
+	}
+	
 	//~--- set methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param properties
-	 */
 	@Override
 	public void setProperties(Map<String, Object> properties) {
 		super.setProperties(properties);
@@ -96,12 +97,6 @@ public class ClConDirRepository
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param item
-	 */
 	@Override
 	public void storeItem(ClusterRepoItem item) {
 		try {
@@ -116,10 +111,6 @@ public class ClConDirRepository
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 */
 	@Override
 	public void reload() {
 		super.reload();

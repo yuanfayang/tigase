@@ -21,7 +21,8 @@ jars/tigase-socks5-1.0.0-SNAPSHOT.jar
 jars/tigase-stun-1.1.0-SNAPSHOT.jar
 jars/tigase-utils.jar
 jars/tigase-xmltools.jar
-logs
+logs/**
+!logs/server-info.html
 config.txt
 docs
 installer
@@ -62,3 +63,6 @@ database/postgresql-pubsub-schema-3.0.0.sql
 database/pubsub-db-create-derby.sh
 database/pubsub-db-migrate.sh
 database/sqlserver-pubsub-schema-3.0.0.sql
+derby.log
+tigase/setup
+/bin/

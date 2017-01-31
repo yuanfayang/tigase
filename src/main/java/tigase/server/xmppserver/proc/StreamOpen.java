@@ -52,12 +52,11 @@ public class StreamOpen extends S2SAbstractProcessor {
 
 	// ~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * @param serv
-	 */
+	@Override
+	public int order() {
+		return Order.StreamOpen.ordinal();
+	}
+	
 	@Override
 	public void serviceStarted(S2SIOService serv) {
 		switch (serv.connectionType()) {
@@ -101,12 +100,6 @@ public class StreamOpen extends S2SAbstractProcessor {
 		} // end of switch (service.connectionType())
 	}
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * @param serv
-	 */
 	@Override
 	public void serviceStopped(S2SIOService serv) {
 		CID cid = (CID) serv.getSessionData().get("cid");
@@ -139,15 +132,6 @@ public class StreamOpen extends S2SAbstractProcessor {
 		}
 	}
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * @param serv
-	 * @param attribs
-	 * 
-	 * 
-	 */
 	@Override
 	public String streamOpened(S2SIOService serv, Map<String, String> attribs) {
 		CID cid = (CID) serv.getSessionData().get("cid");

@@ -45,6 +45,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import tigase.conf.Configurable;
 
 /**
  *
@@ -67,51 +68,21 @@ public class CAPS
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String id() {
 		return ID;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String[][] supElementNamePaths() {
 		return ELEMENTS;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String[] supNamespaces() {
 		return XMLNSS;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 * @param session
-	 * @param repo
-	 * @param results
-	 * @param settings
-	 *
-	 * @throws XMPPException
-	 */
 	@Override
 	@SuppressWarnings("unchecked")
 	public void process(Packet packet, XMPPResourceConnection session,
@@ -166,7 +137,11 @@ public class CAPS
 					}
 				} else if ((packet.getElemName() == Iq.ELEM_NAME) && ((packet.getType() ==
 						StanzaType.error) || (packet.getType() == StanzaType.result))) {
-					PresenceCapabilitiesManager.processCapsQueryResponse(packet);
+						String nick = packet.getStanzaTo().getLocalpart();
+
+						if ((nick == null) || Configurable.DEF_SM_NAME.equals(nick)) {
+							PresenceCapabilitiesManager.processCapsQueryResponse(packet);
+						}
 				}
 			} catch (NotAuthorizedException ex) {
 				Logger.getLogger(CAPS.class.getName()).log(Level.SEVERE, null, ex);
@@ -176,7 +151,11 @@ public class CAPS
 		} else if (((session == null) || session.isServerSession()) && (packet
 				.getElemName() == Iq.ELEM_NAME) && ((packet.getType() == StanzaType.error) ||
 				(packet.getType() == StanzaType.result))) {
-			PresenceCapabilitiesManager.processCapsQueryResponse(packet);
+			String nick = packet.getStanzaTo().getLocalpart();
+
+			if ((nick == null) || Configurable.DEF_SM_NAME.equals(nick)) {
+				PresenceCapabilitiesManager.processCapsQueryResponse(packet);
+			}
 		}
 	}
 

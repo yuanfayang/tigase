@@ -26,32 +26,28 @@ package tigase.server.ext;
 
 //~--- non-JDK imports --------------------------------------------------------
 
-import tigase.db.comp.ComponentRepository;
-import tigase.db.comp.RepositoryChangeListenerIfc;
-import tigase.db.DataRepository;
-import tigase.db.RepositoryFactory;
-
-import tigase.xml.DomBuilderHandler;
-import tigase.xml.Element;
-import tigase.xml.SimpleParser;
-import tigase.xml.SingletonFactory;
-
-//~--- JDK imports ------------------------------------------------------------
-
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.Map;
 import java.util.Queue;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import tigase.db.DBInitException;
+import tigase.db.DataRepository;
+import tigase.db.RepositoryFactory;
+import tigase.db.comp.ComponentRepository;
+import tigase.db.comp.RepositoryChangeListenerIfc;
+import tigase.xml.DomBuilderHandler;
+import tigase.xml.Element;
+import tigase.xml.SimpleParser;
+import tigase.xml.SingletonFactory;
 
 /**
  * Created: Nov 7, 2009 11:26:10 AM
@@ -105,36 +101,23 @@ public class CompSQLRepository
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param repoChangeListener
-	 */
 	@Override
 	public void addRepoChangeListener(
 			RepositoryChangeListenerIfc<CompRepoItem> repoChangeListener) {
 		configRepo.addRepoChangeListener(repoChangeListener);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param repoChangeListener
-	 */
 	@Override
 	public void removeRepoChangeListener(
 			RepositoryChangeListenerIfc<CompRepoItem> repoChangeListener) {
 		configRepo.removeRepoChangeListener(repoChangeListener);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param item
-	 */
+	@Override
+	public void addItemNoStore(CompRepoItem item) {
+
+	}
+
 	@Override
 	public void addItem(CompRepoItem item) {
 		try {
@@ -187,12 +170,6 @@ public class CompSQLRepository
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public Collection<CompRepoItem> allItems() {
 		List<CompRepoItem> result = new ArrayList<CompRepoItem>();
@@ -220,14 +197,6 @@ public class CompSQLRepository
 		return result;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param key
-	 *
-	 * 
-	 */
 	@Override
 	public boolean contains(String key) {
 		boolean result = configRepo.contains(key);
@@ -235,15 +204,15 @@ public class CompSQLRepository
 		return result;
 	}
 
+	@Override
+	public void destroy() {
+		// This implementation of CompSQLRepository is using shared connection
+		// pool to database which is cached by RepositoryFactory and maybe be used
+		// in other places, so we can not destroy it.
+	}
+	
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param defs
-	 * @param params
-	 */
 	@Override
 	public void getDefaults(Map<String, Object> defs, Map<String, Object> params) {
 		configRepo.getDefaults(defs, params);
@@ -256,14 +225,6 @@ public class CompSQLRepository
 		defs.put(REPO_URI_PROP_KEY, repo_uri);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param key
-	 *
-	 * 
-	 */
 	@Override
 	public CompRepoItem getItem(String key) {
 		CompRepoItem result = configRepo.getItem(key);
@@ -292,12 +253,6 @@ public class CompSQLRepository
 		return result;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public CompRepoItem getItemInstance() {
 		return configRepo.getItemInstance();
@@ -305,17 +260,9 @@ public class CompSQLRepository
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param conn_str
-	 * @param params
-	 *
-	 * @throws SQLException
-	 */
+	@Override
 	public void initRepository(String conn_str, Map<String, String> params)
-					throws SQLException {
+					throws DBInitException {
 		try {
 			data_repo = RepositoryFactory.getDataRepository(null, conn_str, params);
 			checkDB();
@@ -332,33 +279,17 @@ public class CompSQLRepository
 		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public Iterator<CompRepoItem> iterator() {
 		return allItems().iterator();
 	}
 
-	/**
-	 * Method description
-	 *
-	 */
 	@Override
 	public void reload() {
 
 		// Do nothing, no caching, everything is read on demand from DB
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param key
-	 */
 	@Override
 	public void removeItem(String key) {
 		configRepo.removeItem(key);
@@ -377,12 +308,6 @@ public class CompSQLRepository
 
 	//~--- set methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param properties
-	 */
 	@Override
 	public void setProperties(Map<String, Object> properties) {
 		configRepo.setProperties(properties);
@@ -391,19 +316,13 @@ public class CompSQLRepository
 
 		try {
 			initRepository(repo_uri, null);
-		} catch (SQLException ex) {
+		} catch (DBInitException ex) {
 			log.log(Level.WARNING, "Problem initializing database.", ex);
 		}
 	}
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public int size() {
 		int result = configRepo.size();
@@ -411,24 +330,12 @@ public class CompSQLRepository
 		return result;
 	}
 
-	/**
-	 * Method description
-	 *
-	 */
 	@Override
 	public void store() {
 
 		// Do nothing everything is written on demand to DB
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param item
-	 *
-	 * 
-	 */
 	@Override
 	public String validateItem(CompRepoItem item) {
 		return null;
@@ -514,15 +421,6 @@ public class CompSQLRepository
 
 	//~--- set methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param delay
-	 */
 	@Override
 	public void setAutoloadTimer(long delay) {}
 }
-
-
-//~ Formatted in Tigase Code Convention on 13/03/11

@@ -28,31 +28,64 @@ import tigase.xmpp.JID;
  * Created: Apr 19, 2009 12:15:07 AM
  *
  * @author <a href="mailto:artur.hefczyc@tigase.org">Artur Hefczyc</a>
- * @version $Rev$
  */
 public interface OnlineJidsReporter {
 
 	/**
-	 * Indicates whether given {@code OnlineJidsReporter} contains complete
-	 * information about connected JIDs.
+	 * Method checks whether the clustering strategy has a complete JIDs info.
+	 * That is whether the strategy knows about all users connected to all nodes.
+	 * Some strategies may choose not to share this information among nodes, hence
+	 * the methods returns false. Other may synchronize this information and can
+	 * provide it to further optimize cluster traffic.
 	 *
-	 *
-	 * @return {@code true} if the informations are complete, {@code false}
-	 *         otherwise.
+	 * @return a true boolean value if the strategy has a complete information
+	 *         about all users connected to all cluster nodes.
 	 */
 	boolean hasCompleteJidsInfo();
 
 	/**
-	 * Checks whether there is an online session for the given user BareJID.
+	 * The method checks whether the given JID is known to the installation,
+	 * either user connected to local machine or any of the cluster nodes. False
+	 * result does not mean the user is not connected. It means the method does
+	 * not know anything about the JID. Some clustering strategies may not cache
+	 * online users information.
 	 *
-	 * @param jid id of the user which we want to check.
+	 * @param jid
+	 *          a user's JID for whom we query information.
 	 *
-	 * @return {@code true} if there is user session for the given JID,
-	 *         {@code false} otherwise.
-	 *
+	 * @return true if the user is known as online to the installation, false if
+	 *         the method does not know.
 	 */
 	boolean containsJid( BareJID jid );
 
+	/**
+	 * The method checks whether the given JID is known to local cluster node
+	 * as connected user. False result means that given JID is not connected
+	 * to local cluster node but it may be connected to other cluster node.
+	 * Result of this method should be independent of used clustering strategy.
+	 * 
+	 * @param jid
+	 *			a user's JID for whom we query information
+	 * 
+	 * @return true if user is known as connected to local cluster node, false if
+	 *			it is not connected to local node
+	 */
+	boolean containsJidLocally( BareJID jid);
+
+	/**
+	 * The method checks whether the given JID is known to local cluster node
+	 * as connected user. False result means that given JID is not connected
+	 * to local cluster node but it may be connected to other cluster node.
+	 * Result of this method should be independent of used clustering strategy.
+	 * 
+	 * @param jid
+	 *			a user's JID for whom we query information
+	 * 
+	 * @return true if user is known as connected to local cluster node, false if
+	 *			it is not connected to local node
+	 */
+	boolean containsJidLocally( JID jid);	
+	
 	/**
 	 * Retrieve all connection IDs (CIDs) for the given user.
 	 *

@@ -24,23 +24,14 @@ package tigase.server.xmppserver;
 
 //~--- non-JDK imports --------------------------------------------------------
 
-import tigase.io.TLSEventHandler;
-
-import tigase.server.Packet;
-
-import tigase.xml.Element;
-
-import tigase.xmpp.BareJID;
-import tigase.xmpp.XMPPIOService;
-
-//~--- JDK imports ------------------------------------------------------------
-
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.TimerTask;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import tigase.server.Packet;
+import tigase.xml.Element;
+import tigase.xmpp.BareJID;
+import tigase.xmpp.XMPPIOService;
 
 //~--- interfaces -------------------------------------------------------------
 
@@ -59,8 +50,9 @@ public interface S2SConnectionHandlerIfc<IO extends XMPPIOService<?>> {
 	 *
 	 *
 	 *
-	 * @param serv
-	 * 
+	 * @param serv {@link S2SIOService} for which stream features should be retrieved
+	 *
+	 * @return list of stream features
 	 */
 	public List<Element> getStreamFeatures(S2SIOService serv);
 
@@ -77,16 +69,38 @@ public interface S2SConnectionHandlerIfc<IO extends XMPPIOService<?>> {
 
 	BareJID getDefHostName();
 
-	String getLocalDBKey(CID cid, CID keyCid, String remote_key, String stanzaId, String sessionId);
+	/**
+	 * Returns secret used for particular domain
+	 *
+	 * @param domain for which secret should be returned
+	 * 
+	 * @return for particular domain
+	 * @throws NotLocalhostException if the domain is not local
+	 */
+	String getSecretForDomain( String domain ) throws NotLocalhostException;
+
+	String getServerNameForDomain( String domain );
 
 	//~--- methods --------------------------------------------------------------
 
 	void initNewConnection(Map<String, Object> port_props);
 
+	/**
+	 * Checks if TLS is required for particular domain
+	 *
+	 * @param domain for which secret should be returned
+	 *
+	 * @return boolean indicating whether TLS is required
+	 */
+	boolean isTlsRequired(String domain);
+        
 	boolean isTlsWantClientAuthEnabled();
 	
 	boolean sendVerifyResult(String elem_name, CID connCid, CID keyCid, Boolean valid,
 			String key_sessionId, String serv_sessionId, String cdata, boolean handshakingOnly);
+
+	boolean sendVerifyResult(String elem_name, CID connCid, CID keyCid, Boolean valid,
+			String key_sessionId, String serv_sessionId, String cdata, boolean handshakingOnly, Element errorElem);
 
 	boolean writePacketToSocket(IO serv, Packet packet);
 

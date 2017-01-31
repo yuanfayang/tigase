@@ -26,20 +26,20 @@ package tigase.sys;
 
 //~--- non-JDK imports --------------------------------------------------------
 
+import tigase.server.XMPPServer;
 import tigase.server.monitor.MonitorRuntime;
 
 import tigase.xmpp.JID;
-
-//~--- JDK imports ------------------------------------------------------------
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.ThreadMXBean;
-
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
+import tigase.xmpp.BareJID;
 
 /**
  * Created: Feb 19, 2009 12:15:02 PM
@@ -173,10 +173,6 @@ public abstract class TigaseRuntime {
 			prevCputime = currCputime;
 		}
 
-//  System.out.println("currUptime: " + currUptime +
-//          "- prevUptime: " + prevUptime + " = elapsedTime: " + elapsedTime +
-//          "\n, currCputime: " + currCputime +
-//          " - prevCputime: " + prevCputime + " = elapsedCpu: " + elapsedCpu);
 		return cpuUsage;
 	}
 
@@ -225,7 +221,7 @@ public abstract class TigaseRuntime {
 	 * @return a value of <code>float</code>
 	 */
 	public float getHeapMemUsage() {
-		return (getHeapMemUsed() * 100F) / getHeapMemMax();
+		return  getHeapMemMax() == -1 ? 100F : (getHeapMemUsed() * 100F) / getHeapMemMax();
 	}
 
 	/**
@@ -282,7 +278,7 @@ public abstract class TigaseRuntime {
 	 * @return a value of <code>float</code>
 	 */
 	public float getNonHeapMemUsage() {
-		return (getNonHeapMemUsed() * 100F) / getNonHeapMemMax();
+		return getNonHeapMemMax() == -1 ? 100F : (getNonHeapMemUsed() * 100F) / getNonHeapMemMax();
 	}
 
 	/**
@@ -418,7 +414,25 @@ public abstract class TigaseRuntime {
 	 * @return a value of <code>boolean</code>
 	 */
 	public abstract boolean isJidOnline(JID jid);
+	
+	public abstract boolean isJidOnlineLocally(BareJID jid);
+	
+	public abstract boolean isJidOnlineLocally(JID jid);
+
+	public void shutdownTigase(String[] msg) {
+			if (XMPPServer.isOSGi()) {
+				// for some reason System.out.println is not working in OSGi
+				for (String line : msg) {
+					log.log(Level.SEVERE, line);
+				}
+			}
+			else {
+				for (String line : msg) {
+					System.out.println(line);
+				}
+			}
+
+			System.exit(1);
+	}
+
 }
-
-
-//~ Formatted in Tigase Code Convention on 13/11/29

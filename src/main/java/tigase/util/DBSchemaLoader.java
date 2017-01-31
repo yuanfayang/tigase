@@ -59,7 +59,7 @@ import tigase.xmpp.BareJID;
  *
  * @author wojtek
  */
-class DBSchemaLoader {
+class DBSchemaLoader extends SchemaLoader {
 
 	/** Denotes whether there wasn't any problem establishing connection to the
 	 * database */
@@ -470,49 +470,71 @@ class DBSchemaLoader {
 		return is;
 	}
 
-	/**
-	 * Method validates whether the connection can at least be established. If yes
-	 * then appropriate flag is set.
-	 *
-	 * @param variables set of {@code Properties} with all configuration options
-	 */
-	public void validateDBConnection( Properties variables ) {
+	@Override
+	public Result validateDBConnection( Properties variables ) {
 		connection_ok = false;
 		String db_conn = getDBUri( variables, false, true );
 		log.log( Level.INFO, "Validating DBConnection, URI: " + db_conn );
 		if ( db_conn == null ){
 			log.log( Level.WARNING, "Missing DB connection URL" );
+			return Result.ok;
 		} else {
-			try {
+			try ( Connection conn = DriverManager.getConnection( db_conn ) ) {
 				Enumeration<Driver> drivers = DriverManager.getDrivers();
 				ArrayList<String> availableDrivers = new ArrayList<>();
 				while ( drivers.hasMoreElements() ) {
 					availableDrivers.add( drivers.nextElement().toString() );
 				}
 				log.log( Level.CONFIG, "DriverManager (available drivers): " + Arrays.asList( availableDrivers ) );
-				Connection conn = DriverManager.getConnection( db_conn );
 				conn.close();
 				connection_ok = true;
 				log.log( Level.INFO, "Connection OK" );
+				return Result.ok;
 			} catch ( SQLException e ) {
 				//e.printStackTrace();
 				log.log( Level.WARNING, e.getMessage() );
+				return Result.error;
 			}
 		}
 	}
 
-	/**
-	 * Method, if the connection is validated by {@code validateDBConnection},
-	 * checks whether desired database exists. If not it creates such database
-	 * using {@code *-installer-create-db.sql} schema file substituting it's
-	 * variables with ones provided.
-	 *
-	 * @param variables set of {@code Properties} with all configuration options
-	 */
-	public void validateDBExists( Properties variables ) {
+	public Result shutdown( Properties variables ) {
+		return shutdownDerby(variables);
+	}
+	
+	public Result shutdownDerby( Properties variables ) {
+		String db_conn = getDBUri( variables, false, true );
+		String database = variables.getProperty( DATABASE_TYPE_KEY );
+		if ( "derby".equals( database ) ){
+			log.log( Level.INFO, "Validating DBConnection, URI: " + db_conn );
+			if ( db_conn == null ){
+				log.log( Level.WARNING, "Missing DB connection URL" );
+			} else {
+				db_conn += ";shutdown=true";
+				try ( Connection conn = DriverManager.getConnection( db_conn ) ) {
+					Enumeration<Driver> drivers = DriverManager.getDrivers();
+					ArrayList<String> availableDrivers = new ArrayList<>();
+					while ( drivers.hasMoreElements() ) {
+						availableDrivers.add( drivers.nextElement().toString() );
+					}
+					log.log( Level.CONFIG, "DriverManager (available drivers): " + Arrays.asList( availableDrivers ) );
+					conn.close();
+					connection_ok = true;
+					log.log( Level.INFO, "Connection OK" );
+				} catch ( SQLException e ) {
+					//e.printStackTrace();
+					log.log( Level.WARNING, e.getMessage() );
+				}
+			}
+		}
+		return Result.ok;
+	}
+
+	@Override
+	public Result validateDBExists( Properties variables ) {
 		if ( !connection_ok ){
 			log.log( Level.WARNING, "Connection not validated" );
-			return;
+			return Result.error;
 		}
 
 		String res_prefix = variables.get( DATABASE_TYPE_KEY ).toString();
@@ -521,30 +543,33 @@ class DBSchemaLoader {
 		log.log( Level.INFO, "Validating whether DB Exists, URI: " + db_conn );
 		if ( db_conn == null ){
 			log.log( Level.WARNING, "Missing DB connection URL" );
+			return Result.error;
 		} else {
-			Connection conn = null;
-			try {
-				conn = DriverManager.getConnection( db_conn );
+			try
+				( Connection conn = DriverManager.getConnection( db_conn ) ) {
 				conn.close();
 				db_ok = true;
 				log.log( Level.INFO, "Exists OK" );
+				return Result.ok;
 			} catch ( SQLException e ) {
 				log.log( Level.INFO, "Doesn't exist, creating..." );
 
 				db_conn = getDBUri( variables, false, true );
-				try {
-					conn = DriverManager.getConnection( db_conn );
+			
+				try
+					(Connection conn = DriverManager.getConnection( db_conn ) ) {
+					Result result = Result.ok;
 					ArrayList<String> queries = loadSQLQueries( res_prefix + "-installer-create-db", res_prefix, variables );
 					for ( String query : queries ) {
 						log.log( Level.FINE, "Executing query: " + query );
 						if ( !query.isEmpty() ){
-							Statement stmt = conn.createStatement();
 							// Some queries may fail and this is still fine
 							// the user or the database may already exist
-							try {
+							try ( Statement stmt = conn.createStatement() ) {
 								stmt.execute( query );
 								stmt.close();
 							} catch ( SQLException ex ) {
+								result = Result.warning;
 								log.log( Level.WARNING, "Query failed: " + ex.getMessage() );
 							}
 						}
@@ -552,8 +577,10 @@ class DBSchemaLoader {
 					conn.close();
 					log.log( Level.INFO, " OK" );
 					db_ok = true;
+					return result;
 				} catch ( SQLException | IOException ex ) {
 					log.log( Level.WARNING, ex.getMessage() );
+					return Result.error;
 				}
 			}
 		}
@@ -566,14 +593,14 @@ class DBSchemaLoader {
 	 *
 	 * @param variables set of {@code Properties} with all configuration options
 	 */
-	public void validateDBSchema( Properties variables ) {
+	public Result validateDBSchema( Properties variables ) {
 		if ( !connection_ok ){
 			log.log( Level.WARNING, "Connection not validated" );
-			return;
+			return Result.error;
 		}
 		if ( !db_ok ){
 			log.log( Level.WARNING, "Database not validated" );
-			return;
+			return Result.error;
 		}
 		schema_exists = false;
 		schema_ok = false;
@@ -612,11 +639,11 @@ class DBSchemaLoader {
 				}
 			}
 		} catch ( SQLException e ) {
-			log.log( Level.INFO, "Exception, posibly schema hasn't been loaded yet.");
+			log.log( Level.WARNING, "Exception, posibly schema hasn't been loaded yet.");
 		}
 		if ( schema_ok ){
 			log.log( Level.INFO, "Schema OK, accounts number: " + users );
-			return;
+			return Result.ok;
 		}
 		if ( !schema_exists ){
 			db_conn = getDBUri( variables, true, true );
@@ -635,11 +662,14 @@ class DBSchemaLoader {
 				}
 				schema_ok = true;
 				log.log( Level.INFO, "New schema loaded OK" );
+				return Result.ok;
 			} catch ( SQLException | IOException ex ) {
-				log.log( Level.INFO, "Can't load schema: " + ex.getMessage() );
+				log.log( Level.WARNING, "Can't load schema: " + ex.getMessage() );
+				return Result.error;
 			}
 		} else {
 			log.log( Level.INFO, "Old schema, accounts number: " + users );
+			return Result.warning;
 		}
 	}
 
@@ -650,20 +680,20 @@ class DBSchemaLoader {
 	 *
 	 * @param variables set of {@code Properties} with all configuration options
 	 */
-	public void postInstallation( Properties variables ) {
+	public Result postInstallation( Properties variables ) {
 		// part 1, check db preconditions
 		if ( !connection_ok ){
-			log.log( Level.INFO, "Connection not validated" );
-			return;
+			log.log( Level.WARNING, "Connection not validated" );
+			return Result.error;
 		}
 		if ( !db_ok ){
-			log.log( Level.INFO, "Database not validated" );
-			return;
+			log.log( Level.WARNING, "Database not validated" );
+			return Result.error;
 		}
 
 		if ( !schema_ok ){
-			log.log( Level.INFO, "Database schema is invalid" );
-			return;
+			log.log( Level.WARNING, "Database schema is invalid" );
+			return Result.error;
 		}
 
 		// part 2, acquire reqired fields and validate them
@@ -685,31 +715,28 @@ class DBSchemaLoader {
 			}
 			schema_ok = true;
 			log.log( Level.INFO, " completed OK" );
+			return Result.ok;
 		} catch ( SQLException | IOException ex ) {
-			log.log( Level.INFO, "Can't finalize: " + ex.getMessage() );
+			log.log( Level.WARNING, "Can't finalize: " + ex.getMessage() );
+			return Result.error;
 		}
 	}
 
-	/**
-	 * Method attempts to add XMPP admin user account to the database using
-	 * {@link AuthRepository}.
-	 *
-	 * @param variables set of {@code Properties} with all configuration options
-	 */
-	protected void addXmppAdminAccount( Properties variables ) {
+	@Override
+	public Result addXmppAdminAccount( Properties variables ) {
 		// part 1, check db preconditions
 		if ( !connection_ok ){
 			log.log( Level.WARNING, "Connection not validated" );
-			return;
+			return Result.error;
 		}
 		if ( !db_ok ){
 			log.log( Level.WARNING, "Database not validated" );
-			return;
+			return Result.error;
 		}
 
 		if ( !schema_ok ){
 			log.log( Level.WARNING, "Database schema is invalid" );
-			return;
+			return Result.error;
 		}
 
 		// part 2, acquire reqired fields and validate them
@@ -726,13 +753,13 @@ class DBSchemaLoader {
 		}
 		if ( jids.size() < 1 ){
 			log.log( Level.WARNING, "Error: No admin users entered" );
-			return;
+			return Result.warning;
 		}
 
 		Object pwdObj = variables.get( ADMIN_JID_PASS_KEY );
 		if ( pwdObj == null ){
 			log.log( Level.WARNING, "Error: No admin password enetered" );
-			return;
+			return Result.warning;
 		}
 		String pwd = pwdObj.toString();
 
@@ -740,41 +767,41 @@ class DBSchemaLoader {
 		log.log( Level.INFO, "Adding XMPP Admin Account, URI: " + dbUri );
 
 		try {
-			log.log( Level.CONFIG, "RepositoryFactory.getAuthRepository(" + null + ", " + dbUri + ",  + null)" );
-			AuthRepository repo = RepositoryFactory.getAuthRepository( null, dbUri, null );
+			Map<String, String> params = new HashMap<>();
+			params.put( RepositoryFactory.DATA_REPO_POOL_SIZE_PROP_KEY, String.valueOf( 1 ) );
+
+			log.log( Level.CONFIG, "RepositoryFactory.getAuthRepository(" + null + ", "
+														 + dbUri + "," + Arrays.asList( params ) + ")" );
+			AuthRepository repo = RepositoryFactory.getAuthRepository( null, dbUri, params );
 			for ( BareJID jid : jids ) {
 				repo.addUser( jid, pwd );
 			}
 
 			log.log( Level.INFO, "All users added" );
+			return Result.ok;
 		} catch ( TigaseDBException | ClassNotFoundException | InstantiationException | IllegalAccessException e ) {
 			log.log( Level.WARNING, "Error initializing DB" + e );
+			return Result.error;
 		}
 	}
 
-	/**
-	 * Method checks whether the connection to the database is possible and that
-	 * database of specified name exists. If yes then a schema file from
-	 * properties is loaded.
-	 *
-	 * @param variables set of {@code Properties} with all configuration options
-	 */
-	protected void loadSchemaFile( Properties variables ) {
+	@Override
+	public Result loadSchemaFile( Properties variables ) {
 
 		// part 1, check db preconditions
 		if ( !connection_ok ){
 			log.log( Level.INFO, "Connection not validated" );
-			return;
+			return Result.error;
 		}
 		if ( !db_ok ){
 			log.log( Level.INFO, "Database not validated" );
-			return;
+			return Result.error;
 		}
 
 		Object fileNameObj = variables.get( FILE_KEY );
 		if ( fileNameObj == null ){
 			log.log( Level.WARNING, "Error: empty query" );
-			return;
+			return Result.error;
 		}
 		String fileName = fileNameObj.toString();
 
@@ -796,8 +823,10 @@ class DBSchemaLoader {
 			}
 			schema_ok = true;
 			log.log( Level.INFO, " completed OK" );
-		} catch ( SQLException | IOException ex ) {
+			return Result.ok;
+		} catch ( SQLException | IOException | NullPointerException ex ) {
 			log.log( Level.WARNING, "Can't finalize: " + ex.getMessage() );
+			return Result.error;
 		}
 	}
 
@@ -966,6 +995,12 @@ class DBSchemaLoader {
 			public void execute( DBSchemaLoader helper, Properties variables ) {
 				helper.postInstallation( variables );
 			}
+		},
+		SHUTDOWN_DATABASE( "Shutting Down Database" ) {
+			@Override
+			public void execute( DBSchemaLoader helper, Properties variables ) {
+				helper.shutdownDerby( variables );
+			}
 		};
 		private final String description;
 
@@ -979,16 +1014,22 @@ class DBSchemaLoader {
 		}
 
 		public static TigaseDBTask[] getTasksInOrder() {
-			return new TigaseDBTask[] { VALIDATE_CONNECTION, VALIDATE_DB_EXISTS,
-																	VALIDATE_DB_SCHEMA, ADD_ADMIN_XMPP_ACCOUNT, POST_INSTALLATION };
+			return new TigaseDBTask[] {
+				VALIDATE_CONNECTION
+					,VALIDATE_DB_EXISTS
+					,VALIDATE_DB_SCHEMA
+					,ADD_ADMIN_XMPP_ACCOUNT
+					,POST_INSTALLATION
+					,SHUTDOWN_DATABASE
+			};
 		}
 
 		public static TigaseDBTask[] getSchemaTasks() {
-			return new TigaseDBTask[] { VALIDATE_CONNECTION, VALIDATE_DB_EXISTS, LOAD_SCHEMA_FILE };
+			return new TigaseDBTask[] { VALIDATE_CONNECTION, VALIDATE_DB_EXISTS, LOAD_SCHEMA_FILE, SHUTDOWN_DATABASE };
 		}
 
 		public static TigaseDBTask[] getQueryTasks() {
-			return new TigaseDBTask[] { VALIDATE_CONNECTION, VALIDATE_DB_EXISTS, EXECUTE_SIMPLE_QUERY };
+			return new TigaseDBTask[] { VALIDATE_CONNECTION, VALIDATE_DB_EXISTS, EXECUTE_SIMPLE_QUERY, SHUTDOWN_DATABASE };
 		}
 	}
 

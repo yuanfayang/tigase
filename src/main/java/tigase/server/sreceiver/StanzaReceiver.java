@@ -24,37 +24,6 @@ package tigase.server.sreceiver;
 
 //~--- non-JDK imports --------------------------------------------------------
 
-import tigase.conf.Configurable;
-
-import tigase.db.RepositoryFactory;
-import tigase.db.TigaseDBException;
-import tigase.db.UserExistsException;
-import tigase.db.UserRepository;
-
-import tigase.disco.ServiceEntity;
-import tigase.disco.ServiceIdentity;
-import tigase.disco.XMPPService;
-
-import tigase.server.AbstractMessageReceiver;
-import tigase.server.Command;
-import tigase.server.Iq;
-import tigase.server.Packet;
-
-import tigase.stats.StatisticsList;
-
-import tigase.util.ClassUtil;
-import tigase.util.DNSResolver;
-import tigase.util.TigaseStringprepException;
-
-import tigase.xml.Element;
-
-import tigase.xmpp.JID;
-import tigase.xmpp.StanzaType;
-
-import static tigase.server.sreceiver.PropertyConstants.*;
-
-//~--- JDK imports ------------------------------------------------------------
-
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -66,6 +35,34 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import tigase.conf.Configurable;
+import tigase.conf.ConfigurationException;
+import tigase.db.RepositoryFactory;
+import tigase.db.TigaseDBException;
+import tigase.db.UserExistsException;
+import tigase.db.UserRepository;
+import tigase.disco.ServiceEntity;
+import tigase.disco.ServiceIdentity;
+import tigase.disco.XMPPService;
+import tigase.server.AbstractMessageReceiver;
+import tigase.server.Command;
+import tigase.server.Iq;
+import tigase.server.Packet;
+
+import static tigase.server.sreceiver.PropertyConstants.*;
+
+//~--- JDK imports ------------------------------------------------------------
+
+import tigase.server.sreceiver.PropertyConstants.MessageType;
+import tigase.server.sreceiver.PropertyConstants.SenderAddress;
+import tigase.server.sreceiver.PropertyConstants.SenderRestrictions;
+import tigase.stats.StatisticsList;
+import tigase.util.ClassUtil;
+import tigase.util.DNSResolver;
+import tigase.util.TigaseStringprepException;
+import tigase.xml.Element;
+import tigase.xmpp.JID;
+import tigase.xmpp.StanzaType;
 
 //~--- classes ----------------------------------------------------------------
 
@@ -102,8 +99,8 @@ import java.util.logging.Logger;
  * forums where you can post messages from Web site as well as from your Jabber
  * client.</li>
  * </ul>
- * <p>
- * <strong>Task creation parameters:</strong><br/>
+ * <br>
+ * <strong>Task creation parameters:</strong><br>
  * <ul>
  * <li><strong>Task short name</strong> - the nick name of the task which is
  * used to create Jabber ID for the task.</li>
@@ -138,10 +135,8 @@ import java.util.logging.Logger;
  * <code>owner</code>, <code>list</code></li>
  * </ul>
  * There can be also some per task specific settings...
- * </p>
- * <p>
+ * <br>
  * Created: Wed May 9 08:27:22 2007
- * </p>
  * 
  * @author <a href="mailto:artur.hefczyc@tigase.org">Artur Hefczyc</a>
  * @version $Rev$
@@ -257,14 +252,6 @@ public class StanzaReceiver extends AbstractMessageReceiver implements Configura
 
 	// ~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * @param packet
-	 * 
-	 * 
-	 */
 	@Override
 	public boolean addOutPacket(Packet packet) {
 		return super.addOutPacket(packet);
@@ -272,14 +259,6 @@ public class StanzaReceiver extends AbstractMessageReceiver implements Configura
 
 	// ~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * @param params
-	 * 
-	 * 
-	 */
 	@Override
 	public Map<String, Object> getDefaults(final Map<String, Object> params) {
 		Map<String, Object> defs = super.getDefaults(params);
@@ -352,29 +331,7 @@ public class StanzaReceiver extends AbstractMessageReceiver implements Configura
 
 		defs.put(TASKS_LIST_PROP_KEY, conf_tasks.toArray(new String[0]));
 
-		String srec_repo_class = RepositoryFactory.DERBY_REPO_CLASS_PROP_VAL;
-		String srec_repo_uri = RepositoryFactory.DERBY_REPO_URL_PROP_VAL;
-		String conf_srec_db = null;
-
-		if (params.get(GEN_SREC_DB) != null) {
-			conf_srec_db = (String) params.get(GEN_SREC_DB);
-		} else {
-			if (params.get(RepositoryFactory.GEN_USER_DB) != null) {
-				conf_srec_db = (String) params.get(RepositoryFactory.GEN_USER_DB);
-			} // end of if (params.get(GEN_USER_DB) != null)
-		} // end of if (params.get(GEN_SREC_DB) != null) else
-
-		if (conf_srec_db != null) {
-			if (conf_srec_db.equals("mysql")) {
-				srec_repo_class = RepositoryFactory.MYSQL_REPO_CLASS_PROP_VAL;
-				srec_repo_uri = RepositoryFactory.MYSQL_REPO_URL_PROP_VAL;
-			}
-
-			if (conf_srec_db.equals("pgsql")) {
-				srec_repo_class = RepositoryFactory.PGSQL_REPO_CLASS_PROP_VAL;
-				srec_repo_uri = RepositoryFactory.PGSQL_REPO_URL_PROP_VAL;
-			}
-		} // end of if (conf_srec_db != null)
+		String srec_repo_uri = null;
 
 		if (params.get(GEN_SREC_DB_URI) != null) {
 			srec_repo_uri = (String) params.get(GEN_SREC_DB_URI);
@@ -384,7 +341,6 @@ public class StanzaReceiver extends AbstractMessageReceiver implements Configura
 			} // end of if (params.get(GEN_USER_DB_URI) != null)
 		} // end of else
 
-		defs.put(SREC_REPO_CLASS_PROP_KEY, srec_repo_class);
 		defs.put(SREC_REPO_URL_PROP_KEY, srec_repo_uri);
 
 		if (params.get(GEN_SREC_ADMINS) != null) {
@@ -420,29 +376,11 @@ public class StanzaReceiver extends AbstractMessageReceiver implements Configura
 		return defs;
 	}
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * @param from
-	 * 
-	 * 
-	 */
 	@Override
 	public List<Element> getDiscoFeatures(JID from) {
 		return null;
 	}
 
-	/**
-	 * Describe <code>getDiscoInfo</code> method here.
-	 * 
-	 * @param node
-	 *          a <code>String</code> value
-	 * @param jid
-	 *          a <code>String</code> value
-	 * @param from
-	 * @return an <code>Element</code> value
-	 */
 	@Override
 	public Element getDiscoInfo(String node, JID jid, JID from) {
 		if ((jid != null) && jid.toString().startsWith(getName() + ".")) {
@@ -452,16 +390,6 @@ public class StanzaReceiver extends AbstractMessageReceiver implements Configura
 		return null;
 	}
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * @param node
-	 * @param jid
-	 * @param from
-	 * 
-	 * 
-	 */
 	@Override
 	public List<Element> getDiscoItems(String node, JID jid, JID from) {
 		if (jid.toString().startsWith(getName() + ".")) {
@@ -475,12 +403,6 @@ public class StanzaReceiver extends AbstractMessageReceiver implements Configura
 		}
 	}
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * @param list
-	 */
 	@Override
 	public void getStatistics(StatisticsList list) {
 		super.getStatistics(list);
@@ -512,14 +434,6 @@ public class StanzaReceiver extends AbstractMessageReceiver implements Configura
 		return task;
 	}
 
-	/**
-	 * Method description
-	 * 
-	 * 
-	 * @param jid
-	 * 
-	 * 
-	 */
 	@Override
 	public boolean isAdmin(JID jid) {
 		log.log(Level.INFO, "Looking for JID: {0} in admins array: {1}", new Object[] {
@@ -529,12 +443,6 @@ public class StanzaReceiver extends AbstractMessageReceiver implements Configura
 
 	// ~--- methods --------------------------------------------------------------
 
-	/**
-	 * Describe <code>processPacket</code> method here.
-	 * 
-	 * @param packet
-	 *          a <code>Packet</code> value
-	 */
 	@Override
 	public void processPacket(final Packet packet) {
 		if (packet.isCommand()) {
@@ -615,14 +523,8 @@ public class StanzaReceiver extends AbstractMessageReceiver implements Configura
 
 	// ~--- set methods ----------------------------------------------------------
 
-	/**
-	 * Describe <code>setProperties</code> method here.
-	 * 
-	 * @param props
-	 *          a <code>Map</code> value
-	 */
 	@Override
-	public void setProperties(final Map<String, Object> props) {
+	public void setProperties(final Map<String, Object> props) throws ConfigurationException {
 		super.setProperties(props);
 		if (props.size() == 1) {
 			// If props.size() == 1, it means this is a single property update 

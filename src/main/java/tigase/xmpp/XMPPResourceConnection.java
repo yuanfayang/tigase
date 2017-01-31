@@ -31,12 +31,17 @@ import tigase.db.AuthRepository;
 import tigase.db.TigaseDBException;
 import tigase.db.UserRepository;
 import tigase.server.Presence;
+import tigase.server.XMPPServer;
+import tigase.server.xmppsession.SessionManager;
 import tigase.server.xmppsession.SessionManagerHandler;
 import tigase.util.TigaseStringprepException;
 import tigase.vhosts.VHostItem;
 import tigase.xml.Element;
 
 //~--- JDK imports ------------------------------------------------------------
+
+
+
 
 
 
@@ -162,11 +167,32 @@ public class XMPPResourceConnection
 	 *
 	 * @param jid
 	 * @param anonymous
+	 * @throws TigaseStringprepException 
 	 */
-	public void authorizeJID(BareJID jid, boolean anonymous) {
-		authState    = Authorization.AUTHORIZED;
+	public void authorizeJID(BareJID jid, boolean anonymous) throws TigaseStringprepException {
+		authState = Authorization.AUTHORIZED;
 		is_anonymous = anonymous;
+		if (jid != null && getDomain().getVhost() != null && !jid.getDomain().equals(getDomain().getVhost().getDomain())) {
+			loginHandler.handleDomainChange(jid.getDomain(), this);
+		}
 		loginHandler.handleLogin(jid, this);
+//		if (jid != null && getDomain().getVhost() != null && !jid.getDomain().equals(getDomain().getVhost().getDomain())) {
+//			if (log.isLoggable(Level.INFO)) {
+//				log.log(Level.INFO, "Replacing session VHost: {0} instead of {1}", new Object[] { jid.getDomain(),
+//						getDomain().getVhost().getDomain() });
+//			}
+//			this.userJid = JID.jidInstanceNS(jid.getLocalpart(), jid.getDomain(), this.userJid.getResource());
+//			SessionManager sessMan = (SessionManager) XMPPServer.getConfigurator().getComponent("sess-man");
+//			VHostItem vHostItem = sessMan.getVHostItem(this.userJid.getDomain());
+//			if (vHostItem == null) {
+//				if (log.isLoggable(Level.INFO)) {
+//					log.log(Level.INFO, "Can't get VHostItem for domain: {0}, using default one instead: {1}", new Object[] {
+//							domain, sessMan.getDefHostName() });
+//				}
+//				vHostItem = new VHostItem(sessMan.getDefHostName().getDomain());
+//			}
+//			setDomain(vHostItem.getUnmodifiableVHostItem());
+//		}
 		login();
 	}
 
@@ -230,20 +256,6 @@ public class XMPPResourceConnection
 		return result;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param props
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>Authorization</code>
-	 * @throws AuthorizationException
-	 * @throws NotAuthorizedException
-	 * @throws TigaseDBException
-	 */
 	@Override
 	@Deprecated
 	public final Authorization loginOther(Map<String, Object> props)
@@ -293,12 +305,6 @@ public class XMPPResourceConnection
 		return result;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @throws NotAuthorizedException
-	 */
 	@Override
 	public final void logout() throws NotAuthorizedException {
 		loginHandler.handleLogout(getBareJID(), this);
@@ -348,9 +354,9 @@ public class XMPPResourceConnection
 	/**
 	 * Saves given session data. Data are saved to temporary storage only and are
 	 * accessible during this session life only and only from this session
-	 * instance.<br/>
+	 * instance.<br>
 	 * Any <code>Object</code> can be stored and retrieved through
-	 * <code>getSessionData(...)</code>.<br/>
+	 * <code>getSessionData(...)</code>.<br>
 	 * To access permanent storage to keep data between session instances you must
 	 * use one of <code>get/setData...(...)</code> methods familly. They gives you
 	 * access to hierachical permanent data base. Permanent data base however can
@@ -368,13 +374,6 @@ public class XMPPResourceConnection
 		sessionData.put(key, value);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param authProps
-	 * @throws TigaseDBException
-	 */
 	@Override
 	public void queryAuth(Map<String, Object> authProps) throws TigaseDBException {
 		super.queryAuth(authProps);
@@ -436,50 +435,18 @@ public class XMPPResourceConnection
 		sessionId = null;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 */
 	@Override
 	public String toString() {
-		return "user_jid=" + userJid + ", packets=" + packets_counter + ", connectioId=" +
+		return "XMPPResourceConnection=[user_jid=" + userJid + ", packets=" + packets_counter + ", connectioId=" +
 				connectionId + ", domain=" + domain.getVhost().getDomain() + ", authState=" +
-				getAuthState().name() + ", isAnon=" + isAnonymous() + ", isTmp=" + isTmpSession();
+				getAuthState().name() + ", isAnon=" + isAnonymous() + ", isTmp=" + isTmpSession() + "]";
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param name_param
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>Authorization</code>
-	 * @throws NotAuthorizedException
-	 * @throws TigaseDBException
-	 * @throws TigaseStringprepException
-	 */
 	@Override
 	public Authorization unregister(String name_param)
 					throws NotAuthorizedException, TigaseDBException, TigaseStringprepException {
 		Authorization auth_res = super.unregister(name_param);
 
-		// if (auth_res == Authorization.AUTHORIZED) {
-		// List<XMPPResourceConnection> res_conn =
-		// parentSession.getActiveResources();
-		// for (XMPPResourceConnection res: res_conn) {
-		// if (res != this) {
-		// res.logout();
-		// } // end of if (res != this)
-		// } // end of for (XMPPResourceConnection res: res_conn)
-		// logout();
-		// } // end of if (res == Authorization.AUTHORIZED)
 		return auth_res;
 	}
 
@@ -493,7 +460,7 @@ public class XMPPResourceConnection
 	 *
 	 *
 	 *
-	 * @return a value of <code>List<XMPPResourceConnection></code>
+	 * @return a value of {@code List<XMPPResourceConnection>}
 	 * @throws NotAuthorizedException
 	 */
 	public List<XMPPResourceConnection> getActiveSessions() throws NotAuthorizedException {
@@ -543,21 +510,6 @@ public class XMPPResourceConnection
 		return authenticationTime - creationTime;
 	}
 
-	/**
-	 * Returns user JID but without <em>resource</em> part. This is real user ID
-	 * not session ID. To retrieve session ID - full JID refer to
-	 * <code>getJID()</code> method.<br/>
-	 * If session has not been authorized yet this method throws
-	 * <code>NotAuthorizedException</code>.
-	 *
-	 * @return a <code>String</code> value of user ID - this is user JID without
-	 *         resource part. To obtain full user JID please refer to
-	 *         <code>getJID</code> method.
-	 * @exception NotAuthorizedException
-	 *              when this session has not been authorized yet and some parts
-	 *              of user JID are not known yet.
-	 * @see #getJID()
-	 */
 	@Override
 	public final BareJID getBareJID() throws NotAuthorizedException {
 		if (!isAuthorized()) {
@@ -799,16 +751,6 @@ public class XMPPResourceConnection
 		return this.getBareJID();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 * @throws NotAuthorizedException
-	 */
 	@Override
 	public final String getUserName() throws NotAuthorizedException {
 		if (!isAuthorized()) {
@@ -820,14 +762,6 @@ public class XMPPResourceConnection
 
 	// ~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>boolean</code>
-	 */
 	@Override
 	public boolean isAuthorized() {
 		return super.isAuthorized() && (parentSession != null);
@@ -978,6 +912,13 @@ public class XMPPResourceConnection
 				pr = 1;
 			}
 			setPriority(pr);
+		} else {
+			// workaround for case when presence update came before presence was broadcasted due to 
+			// loading of roster data in roster processing thread
+			if (getPriority() != 0 && !"unavailable".equals(packet.getAttributeStaticStr("type"))) {
+				packet.addChild(new Element("priority", String.valueOf(getPriority())));
+			}
+			putSessionData(PRESENCE_KEY, packet);
 		}
 		loginHandler.handlePresenceSet(this);
 	}
@@ -1044,10 +985,6 @@ public class XMPPResourceConnection
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 */
 	@Override
 	protected void login() {
 		authenticationTime = System.currentTimeMillis();
@@ -1061,7 +998,10 @@ public class XMPPResourceConnection
 	public boolean isTlsRequired() {
 		VHostItem vhost = getDomain();
 		try {
-			if ("c2s".equals(getConnectionId().getLocalpart()))
+			if ( null != getSessionData( "SSL" ) && (boolean) getSessionData( "SSL" ) ){
+				return false;
+			}
+			if ("c2s".equals(getConnectionId().getLocalpart()) )
 				return vhost.isTlsRequired();
 			else
 				return false;

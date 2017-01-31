@@ -27,11 +27,20 @@ package tigase.db;
 //~--- JDK imports ------------------------------------------------------------
 
 import java.sql.SQLException;
-
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.regex.Pattern;
+import tigase.osgi.ModulesManagerImpl;
+import tigase.util.ClassUtil;
 
 /**
  * Describe class RepositoryFactory here.
@@ -57,6 +66,7 @@ public abstract class RepositoryFactory {
 	public static final String AUTH_REPO_CLASS_PROP_KEY = "auth-repo-class";
 
 	/** Field description */
+	@Deprecated
 	public static final String AUTH_REPO_CLASS_PROP_VAL = "tigase.db.jdbc.TigaseCustomAuth";
 
 	/** Field description */
@@ -96,6 +106,7 @@ public abstract class RepositoryFactory {
 	public static final String DATA_REPO_CLASS_PROP_KEY = "data-repo";
 
 	/** Field description */
+	@Deprecated
 	public static final String DATA_REPO_CLASS_PROP_VAL =
 			"tigase.db.jdbc.DataRepositoryImpl";
 
@@ -111,6 +122,9 @@ public abstract class RepositoryFactory {
 
 	/** Field description */
 	public static final String DATA_REPO_POOL_SIZE_PROP_KEY = "data-repo-pool-size";
+
+	private static final String REPO_POOL_SIZE_PROP_KEY = "repo-pool-size";
+	private static final String DEF_REPO_POOL_SIZE_PROP_KEY = "def-repo-pool-size";
 
 	// DataRepository properties
 
@@ -218,7 +232,8 @@ public abstract class RepositoryFactory {
 	/** Field description */
 	public static final String USER_REPO_CLASS_PROP_KEY = "user-repo-class";
 
-	/** Field description */
+	/** Field description */	
+	@Deprecated
 	public static final String USER_REPO_CLASS_PROP_VAL = "tigase.db.jdbc.JDBCRepository";
 
 	/** Field description */
@@ -263,14 +278,29 @@ public abstract class RepositoryFactory {
 	/** Field description */
 	public static final String DATABASE_TYPE_PROP_KEY = "database-type";
 
+	private static final Logger log = Logger.getLogger(RepositoryFactory.class.getCanonicalName());
+	
 	/** Field description */
-	private static ConcurrentMap<String, UserRepository> user_repos =
+	private static final ConcurrentMap<String, UserRepository> user_repos =
 			new ConcurrentHashMap<String, UserRepository>(5);
-	private static ConcurrentMap<String, DataRepository> data_repos =
+	private static final ConcurrentMap<String, DataRepository> data_repos =
 			new ConcurrentHashMap<String, DataRepository>(10);
-	private static ConcurrentMap<String, AuthRepository> auth_repos =
+	private static final ConcurrentMap<String, AuthRepository> auth_repos =
 			new ConcurrentHashMap<String, AuthRepository>(5);
 
+	private static final CopyOnWriteArraySet<Class> internalRepositoryClasses = new CopyOnWriteArraySet<Class>();
+	
+	static {
+		try {
+			Set<Class<Repository>> classes = ClassUtil.getClassesImplementing(Repository.class);
+			initialize(classes);
+		} catch (Exception ex) {
+		}
+	}
+	
+	public static void initialize(Collection<Class<Repository>> classes) {
+		internalRepositoryClasses.addAll(classes);
+	}
 	//~--- get methods ----------------------------------------------------------
 
 	/**
@@ -295,8 +325,11 @@ public abstract class RepositoryFactory {
 		String cls = class_name;
 
 		if (cls == null) {
-			cls = System.getProperty(AUTH_REPO_CLASS_PROP_KEY, AUTH_REPO_CLASS_PROP_VAL);
-		}
+			cls = System.getProperty(AUTH_REPO_CLASS_PROP_KEY);
+			if (cls == null) {
+				cls = getRepoClassName(AuthRepository.class, resource);
+			}
+		}		
 		if (params == null) {
 			params = new LinkedHashMap<String, String>(10);
 		}
@@ -304,34 +337,48 @@ public abstract class RepositoryFactory {
 
 		AuthRepository repo = auth_repos.get(cls + resource);
 
+		if ( log.isLoggable( Level.FINEST ) ){
+			log.log( Level.FINEST, "Getting AuthRepository using: {0} for: {1}; repository instance: ",
+							 new Object[] { cls, resource, repo } );
+		}
+
 		if (repo == null) {
 			String repo_pool_cls = System.getProperty(AUTH_REPO_POOL_CLASS_PROP_KEY,
 					AUTH_REPO_POOL_CLASS_PROP_VAL);
 			int repo_pool_size;
 
-			if (params.get(RepositoryFactory.AUTH_REPO_POOL_SIZE_PROP_KEY) != null) {
-				repo_pool_size = Integer.parseInt(params.get(RepositoryFactory
-						.AUTH_REPO_POOL_SIZE_PROP_KEY));
+			if ( params.get( RepositoryFactory.AUTH_REPO_POOL_SIZE_PROP_KEY ) != null ){
+				repo_pool_size = Integer.parseInt( params.get( RepositoryFactory.AUTH_REPO_POOL_SIZE_PROP_KEY ) );
+				params.put( RepositoryFactory.REPO_POOL_SIZE_PROP_KEY, String.valueOf(
+										repo_pool_size ) );
+			} else if ( Integer.getInteger( AUTH_REPO_POOL_SIZE_PROP_KEY ) != null ){
+				repo_pool_size = Integer.getInteger( AUTH_REPO_POOL_SIZE_PROP_KEY );
+				params.put( RepositoryFactory.REPO_POOL_SIZE_PROP_KEY, String.valueOf(
+										repo_pool_size ) );
 			} else {
-				repo_pool_size = Integer.getInteger(AUTH_REPO_POOL_SIZE_PROP_KEY,
-						AUTH_REPO_POOL_SIZE_PROP_VAL);
+				repo_pool_size = AUTH_REPO_POOL_SIZE_PROP_VAL;
+				params.put( RepositoryFactory.DEF_REPO_POOL_SIZE_PROP_KEY, String.valueOf(
+										repo_pool_size ) );
 			}
-			params.put(RepositoryFactory.DATA_REPO_POOL_SIZE_PROP_KEY, String.valueOf(
-					repo_pool_size));
 			params.put(RepositoryFactory.DATABASE_TYPE_PROP_KEY, class_name);
 			if (repo_pool_cls != null) {
-				AuthRepositoryPool repo_pool = (AuthRepositoryPool) Class.forName(repo_pool_cls)
+				AuthRepositoryPool repo_pool = (AuthRepositoryPool) ModulesManagerImpl.getInstance().forName(repo_pool_cls)
 						.newInstance();
+
+				if ( log.isLoggable( Level.FINEST ) ){
+					log.log( Level.FINEST, "No AuthRepository, creating new; repo_pool_cls: {0}, repo_pool_size: {1}",
+								 new Object[] { repo_pool_cls, repo_pool_size } );
+				}
 
 				repo_pool.initRepository(resource, params);
 				for (int i = 0; i < repo_pool_size; i++) {
-					repo = (AuthRepository) Class.forName(cls).newInstance();
+					repo = (AuthRepository) ModulesManagerImpl.getInstance().forName(cls).newInstance();
 					repo.initRepository(resource, params);
 					repo_pool.addRepo(repo);
 				}
 				repo = repo_pool;
 			} else {
-				repo = (AuthRepository) Class.forName(cls).newInstance();
+				repo = (AuthRepository) ModulesManagerImpl.getInstance().forName(cls).newInstance();
 				repo.initRepository(resource, params);
 			}
 			auth_repos.put(cls + resource, repo);
@@ -363,33 +410,51 @@ public abstract class RepositoryFactory {
 		String cls = class_name;
 
 		if (cls == null) {
-			cls = System.getProperty(DATA_REPO_CLASS_PROP_KEY, DATA_REPO_CLASS_PROP_VAL);
+			cls = System.getProperty(DATA_REPO_CLASS_PROP_KEY);
+			if (cls == null) {
+				cls = getRepoClassName(DataRepository.class, resource);
+			}
 		}
 		if (params == null) {
 			params = new LinkedHashMap<String, String>(10);
 		}
+		cls = getRepoClass(cls);
 
 		DataRepository repo = data_repos.get(cls + resource);
+
+		if ( log.isLoggable( Level.FINEST ) ){
+			log.log( Level.FINEST, "Getting DataRepository: {0} for: {1}; repository instance: ",
+							 new Object[] { cls, resource, repo } );
+		}
 
 		if (repo == null) {
 			int repo_pool_size;
 
 			if (params.get(RepositoryFactory.DATA_REPO_POOL_SIZE_PROP_KEY) != null) {
-				repo_pool_size = Integer.parseInt(params.get(RepositoryFactory
-						.DATA_REPO_POOL_SIZE_PROP_KEY));
+				repo_pool_size = Integer.parseInt(params.get(RepositoryFactory.DATA_REPO_POOL_SIZE_PROP_KEY));
+			} else if (params.get(RepositoryFactory.REPO_POOL_SIZE_PROP_KEY) != null) {
+				repo_pool_size = Integer.parseInt(params.get(RepositoryFactory.REPO_POOL_SIZE_PROP_KEY));
+			} else if (Integer.getInteger(DATA_REPO_POOL_SIZE_PROP_KEY) != null) {
+				repo_pool_size = Integer.getInteger(DATA_REPO_POOL_SIZE_PROP_KEY);
+			} else if (params.get(RepositoryFactory.DEF_REPO_POOL_SIZE_PROP_KEY) != null) {
+				repo_pool_size = Integer.parseInt(params.get(RepositoryFactory.DEF_REPO_POOL_SIZE_PROP_KEY));
 			} else {
-				repo_pool_size = Integer.getInteger(DATA_REPO_POOL_SIZE_PROP_KEY,
-						DATA_REPO_POOL_SIZE_PROP_VAL);
+				repo_pool_size = Integer.getInteger(DATA_REPO_POOL_SIZE_PROP_KEY,DATA_REPO_POOL_SIZE_PROP_VAL);
 			}
 			params.put(RepositoryFactory.DATABASE_TYPE_PROP_KEY, class_name);
+			String repo_pool_cls = System.getProperty(DATA_REPO_POOL_CLASS_PROP_KEY, DATA_REPO_POOL_CLASS_PROP_VAL);
 
-			DataRepositoryPool repo_pool = (DataRepositoryPool) Class.forName(System
-					.getProperty(DATA_REPO_POOL_CLASS_PROP_KEY, DATA_REPO_POOL_CLASS_PROP_VAL))
+			DataRepositoryPool repo_pool = (DataRepositoryPool) ModulesManagerImpl.getInstance().forName(repo_pool_cls)
 					.newInstance();
+
+			if ( log.isLoggable( Level.FINEST ) ){
+				log.log( Level.FINEST, "No DataRepository, creating new; repo_pool_cls: {0}, repo_pool_size: {1}",
+								 new Object[] { repo_pool_cls, repo_pool_size } );
+			}
 
 			repo_pool.initRepository(resource, params);
 			for (int i = 0; i < repo_pool_size; i++) {
-				repo = (DataRepository) Class.forName(cls).newInstance();
+				repo = (DataRepository) ModulesManagerImpl.getInstance().forName(cls).newInstance();
 				repo.initRepository(resource, params);
 				repo_pool.addRepo(repo);
 			}
@@ -401,13 +466,87 @@ public abstract class RepositoryFactory {
 	}
 
 	/**
-	 * Method description
+	 * Method returns class which would be by default used as implementation of class 
 	 *
-	 *
-	 * @param repo_name
+	 * @param cls
+	 * @param uri
+	 * @return 
+	 * @throws tigase.db.DBInitException
 	 *
 	 * 
 	 */
+	public static <T extends Class<? extends Repository>> T getRepoClass(T cls, String uri) throws DBInitException {
+		Set<T> classes = ModulesManagerImpl.getInstance().getImplementations(cls);
+		classes.addAll(getRepoInternalClasses(cls));
+		Set<T> supported = new HashSet<T>();
+		for (T clazz : classes) {
+			Repository.Meta annotation = (Repository.Meta) clazz.getAnnotation(Repository.Meta.class);
+			if (annotation != null) {
+				String[] supportedUris = annotation.supportedUris();
+				if (supportedUris != null) {
+					for (String supportedUri : supportedUris) {
+						if (log.isLoggable(Level.FINEST)) {
+							log.log(Level.FINEST, "checking if {0} for {1} supports {2} while it supports {3} result = {4}", 
+									new Object[]{clazz.getCanonicalName(), cls.getCanonicalName(), uri, supportedUri, Pattern.matches(supportedUri, uri)});
+						}
+						if (Pattern.matches(supportedUri, uri))
+							supported.add(clazz);
+					}
+				} else {
+					supported.add(clazz);
+				}
+			} else {
+				supported.add(clazz);
+			}
+		}
+		if (supported.isEmpty())
+			throw new DBInitException("Not found class supporting uri = " + uri);
+		T result = null;
+		for (T clazz : supported) {
+			if (result == null)
+				result = clazz;
+			else {
+				Repository.Meta ar = (Repository.Meta) result.getAnnotation(Repository.Meta.class);
+				Repository.Meta ac = (Repository.Meta) clazz.getAnnotation(Repository.Meta.class);
+				if (ac == null)
+					continue;
+				if ((ar == null && ac != null) || (!ar.isDefault() && ((ar.supportedUris() == null && ac.supportedUris() != null) || ac.isDefault()))) {
+					result = clazz;
+				}
+			}
+		}
+		return result;
+	}
+	
+	/**
+	 * Returns name of class which would be used as repository implementation
+	 * 
+	 * @param cls - interface class needs to implement
+	 * @param uri - uri which needs to be supported by implementation
+	 * @return
+	 * @throws DBInitException 
+	 */
+	public static String getRepoClassName(Class cls, String uri) throws DBInitException {
+		Class result = getRepoClass(cls, uri);
+		return result.getCanonicalName();
+	}
+	
+	/**
+	 * Method returns internal (available in server classpath) implementation of classes extending or
+	 * implementing class passed as cls parameter.
+	 * 
+	 * @param cls - class for which we look for implementations of extensions
+	 * @return set of classes matching criteria
+	 */
+	private static <T extends Class<? extends Repository>> Set<T> getRepoInternalClasses(T cls) {
+		HashSet<T> result = new HashSet<T>();
+		for (Class<Repository> clazz : internalRepositoryClasses) {
+			if (cls.isAssignableFrom(clazz))
+				result.add((T) clazz);
+		}
+		return result;
+	} 
+	
 	public static String getRepoClass(String repo_name) {
 		String result = repo_name;
 
@@ -462,7 +601,10 @@ public abstract class RepositoryFactory {
 		String cls = class_name;
 
 		if (cls == null) {
-			cls = System.getProperty(USER_REPO_CLASS_PROP_KEY, USER_REPO_CLASS_PROP_VAL);
+			cls = System.getProperty(USER_REPO_CLASS_PROP_KEY);
+			if (cls == null) {
+				cls = getRepoClassName(UserRepository.class, resource);
+			}	
 		}
 		if (params == null) {
 			params = new LinkedHashMap<String, String>(10);
@@ -471,34 +613,50 @@ public abstract class RepositoryFactory {
 
 		UserRepository repo = user_repos.get(cls + resource);
 
+		if ( log.isLoggable( Level.FINEST ) ){
+			log.log( Level.FINEST, "Getting UserRepository: {0} for: {1}; repository instance: ",
+							 new Object[] { cls, resource, repo } );
+		}
+
 		if (repo == null) {
 			String repo_pool_cls = System.getProperty(USER_REPO_POOL_CLASS_PROP_KEY,
 					USER_REPO_POOL_CLASS_PROP_VAL);
 			int repo_pool_size;
 
-			if (params.get(RepositoryFactory.USER_REPO_POOL_SIZE_PROP_KEY) != null) {
-				repo_pool_size = Integer.parseInt(params.get(RepositoryFactory
-						.USER_REPO_POOL_SIZE_PROP_KEY));
+			if ( params.get( RepositoryFactory.USER_REPO_POOL_SIZE_PROP_KEY ) != null ){
+				repo_pool_size = Integer.parseInt( params.get( RepositoryFactory.USER_REPO_POOL_SIZE_PROP_KEY ) );
+				params.put( RepositoryFactory.REPO_POOL_SIZE_PROP_KEY, String.valueOf(
+										repo_pool_size ) );
+			} else if ( Integer.getInteger( USER_REPO_POOL_SIZE_PROP_KEY ) != null ){
+				repo_pool_size = Integer.getInteger( USER_REPO_POOL_SIZE_PROP_KEY );
+				params.put( RepositoryFactory.REPO_POOL_SIZE_PROP_KEY, String.valueOf(
+										repo_pool_size ) );
 			} else {
-				repo_pool_size = Integer.getInteger(USER_REPO_POOL_SIZE_PROP_KEY,
-						USER_REPO_POOL_SIZE_PROP_VAL);
+				repo_pool_size = USER_REPO_POOL_SIZE_PROP_VAL;
+				params.put( RepositoryFactory.DEF_REPO_POOL_SIZE_PROP_KEY, String.valueOf(
+										repo_pool_size ) );
 			}
-			params.put(RepositoryFactory.DATA_REPO_POOL_SIZE_PROP_KEY, String.valueOf(
-					repo_pool_size));
+
 			params.put(RepositoryFactory.DATABASE_TYPE_PROP_KEY, class_name);
+
+			if ( log.isLoggable( Level.FINEST ) ){
+				log.log( Level.FINEST, "No UserRepository, creating new; repo_pool_cls: {0}, repo_pool_size: {1}",
+								 new Object[] { repo_pool_cls, repo_pool_size } );
+			}
+
 			if (repo_pool_cls != null) {
-				UserRepositoryPool repo_pool = (UserRepositoryPool) Class.forName(repo_pool_cls)
+				UserRepositoryPool repo_pool = (UserRepositoryPool) ModulesManagerImpl.getInstance().forName(repo_pool_cls)
 						.newInstance();
 
 				repo_pool.initRepository(resource, params);
 				for (int i = 0; i < repo_pool_size; i++) {
-					repo = (UserRepository) Class.forName(cls).newInstance();
+					repo = (UserRepository) ModulesManagerImpl.getInstance().forName(cls).newInstance();
 					repo.initRepository(resource, params);
 					repo_pool.addRepo(repo);
 				}
 				repo = repo_pool;
 			} else {
-				repo = (UserRepository) Class.forName(cls).newInstance();
+				repo = (UserRepository) ModulesManagerImpl.getInstance().forName(cls).newInstance();
 				repo.initRepository(resource, params);
 			}
 			user_repos.put(cls + resource, repo);

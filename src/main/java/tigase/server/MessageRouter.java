@@ -26,31 +26,8 @@ package tigase.server;
 
 //~--- non-JDK imports --------------------------------------------------------
 
-import tigase.conf.ConfiguratorAbstract;
-
-import tigase.disco.XMPPService;
-
-import tigase.stats.StatisticsList;
-
-import tigase.sys.TigaseRuntime;
-
-import tigase.util.TigaseStringprepException;
-import tigase.util.UpdatesChecker;
-
-import tigase.xml.Element;
-
-import tigase.xmpp.Authorization;
-import tigase.xmpp.JID;
-import tigase.xmpp.PacketErrorTypeException;
-import tigase.xmpp.StanzaType;
-
-import static tigase.server.MessageRouterConfig.*;
-
-//~--- JDK imports ------------------------------------------------------------
-
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
-
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 
@@ -59,6 +36,19 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import tigase.conf.ConfigurationException;
+import tigase.conf.ConfiguratorAbstract;
+import tigase.disco.XMPPService;
+import static tigase.server.MessageRouterConfig.*;
+import tigase.stats.StatisticsList;
+import tigase.sys.TigaseRuntime;
+import tigase.util.TigaseStringprepException;
+import tigase.util.UpdatesChecker;
+import tigase.xml.Element;
+import tigase.xmpp.Authorization;
+import tigase.xmpp.JID;
+import tigase.xmpp.PacketErrorTypeException;
+import tigase.xmpp.StanzaType;
 
 /**
  * Class MessageRouter
@@ -90,7 +80,7 @@ public class MessageRouter
 			DISCO_SHOW_VERSION_PROP_VAL;
 	private UpdatesChecker                    updates_checker = null;
 	private Map<String, XMPPService>          xmppServices = new ConcurrentHashMap<>();
-	private Map<String, ComponentRegistrator> registrators = new ConcurrentHashMap<>();
+	private ConcurrentHashMap<String, ComponentRegistrator> registrators = new ConcurrentHashMap<>();
 	private Map<String, MessageReceiver>      receivers = new ConcurrentHashMap<>();
 	private boolean                           inProperties    = false;
 	private Set<String>                       connectionManagerNames =
@@ -106,7 +96,7 @@ public class MessageRouter
 	 *
 	 * @param component
 	 */
-	public void addComponent(ServerComponent component) {
+	public void addComponent(ServerComponent component) throws ConfigurationException {
 		log.log(Level.INFO, "Adding component: ", component.getClass().getSimpleName());
 		for (ComponentRegistrator registr : registrators.values()) {
 			if (registr != component) {
@@ -131,7 +121,7 @@ public class MessageRouter
 	 *
 	 * @param registr
 	 */
-	public void addRegistrator(ComponentRegistrator registr) {
+	public void addRegistrator(ComponentRegistrator registr) throws ConfigurationException {
 		log.log(Level.INFO, "Adding registrator: {0}", registr.getClass().getSimpleName());
 		registrators.put(registr.getName(), registr);
 		addComponent(registr);
@@ -150,22 +140,12 @@ public class MessageRouter
 	 *
 	 * @param receiver
 	 */
-	public void addRouter(MessageReceiver receiver) {
+	public void addRouter(MessageReceiver receiver) throws ConfigurationException {
 		log.info("Adding receiver: " + receiver.getClass().getSimpleName());
 		addComponent(receiver);
 		receivers.put(receiver.getName(), receiver);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 *
-	 *
-	 *
-	 * @return a value of <code>int</code>
-	 */
 	@Override
 	public int hashCodeForPacket(Packet packet) {
 
@@ -208,54 +188,18 @@ public class MessageRouter
 		return 1;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>int</code>
-	 */
 	@Override
 	public int processingInThreads() {
 		return Runtime.getRuntime().availableProcessors() * 4;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>int</code>
-	 */
 	@Override
 	public int processingOutThreads() {
 		return 1;
 	}
 
 	// ~--- methods --------------------------------------------------------------
-	// private String isToLocalComponent(String jid) {
-	// String nick = JIDUtils.getNodeNick(jid);
-	// if (nick == null) {
-	// return null;
-	// }
-	// String host = JIDUtils.getNodeHost(jid);
-	// if (isLocalDomain(host) && components.get(nick) != null) {
-	// return nick;
-	// }
-	// return null;
-	// }
-	// private boolean isLocalDomain(String domain) {
-	// return localAddresses.contains(domain);
-	// }
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 */
 	@Override
 	public void processPacket(Packet packet) {
 
@@ -514,7 +458,7 @@ public class MessageRouter
 		for (ComponentRegistrator registr : registrators.values()) {
 			if (registr != component) {
 				if (log.isLoggable(Level.FINER)) {
-					log.log(Level.FINER, "Adding: {0} component to {1} registrator.",
+					log.log(Level.FINER, "Removing: {0} component from {1} registrator.",
 							new Object[] { component.getName(),
 							registr.getName() });
 				}
@@ -528,6 +472,19 @@ public class MessageRouter
 		}
 	}
 
+	public void removeRegistrator(ComponentRegistrator registr) {
+		log.log(Level.INFO, "Removing registrator: {0}", registr.getClass().getSimpleName());
+		registrators.remove(registr.getName(), registr);
+		removeComponent(registr);
+		for (ServerComponent comp : components.values()) {
+
+			// if (comp != registr) {
+			registr.deleteComponent(comp);
+
+			// } // end of if (comp != registr)
+		}    // end of for (ServerComponent comp : components)
+	}
+	
 	/**
 	 * Method description
 	 *
@@ -540,19 +497,11 @@ public class MessageRouter
 		removeComponent(receiver);
 	}
 
-	/**
-	 * Method description
-	 *
-	 */
 	@Override
 	public void start() {
 		super.start();
 	}
 
-	/**
-	 * Method description
-	 *
-	 */
 	@Override
 	public void stop() {
 		Set<String> comp_names = new TreeSet<String>();
@@ -570,16 +519,6 @@ public class MessageRouter
 
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param params
-	 *
-	 *
-	 *
-	 * @return a value of <code>Map<String,Object></code>
-	 */
 	@Override
 	public Map<String, Object> getDefaults(Map<String, Object> params) {
 		Map<String, Object> defs = super.getDefaults(params);
@@ -589,27 +528,11 @@ public class MessageRouter
 		return defs;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 */
 	@Override
 	public String getDiscoCategoryType() {
 		return "im";
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 */
 	@Override
 	public String getDiscoDescription() {
 		return disco_name + (disco_show_version
@@ -617,16 +540,6 @@ public class MessageRouter
 				: "");
 	}
 
-	// public List<Element> getDiscoItems(String node, String jid) {
-	// return null;
-	// }
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param list
-	 */
 	@Override
 	public void getStatistics(StatisticsList list) {
 		super.getStatistics(list);
@@ -671,39 +584,27 @@ public class MessageRouter
 		}
 		list.add(getName(), "Max Heap mem", format.format(heap.getMax() / 1024), Level.INFO);
 		list.add(getName(), "Used Heap", format.format(heap.getUsed() / 1024), Level.INFO);
-		list.add(getName(), "Free Heap", format.format((heap.getMax() - heap.getUsed()) /
-				1024), Level.FINE);
+		list.add(getName(), "Free Heap", format.format( heap.getMax() == -1 ? 0 :
+				(heap.getMax() - heap.getUsed()) / 1024), Level.FINE);
 		list.add(getName(), "Max NonHeap mem", format.format(nonHeap.getMax() / 1024), Level
 				.FINE);
 		list.add(getName(), "Used NonHeap", format.format(nonHeap.getUsed() / 1024), Level
 				.FINE);
-		list.add(getName(), "Free NonHeap", format.format((nonHeap.getMax() - nonHeap
-				.getUsed()) / 1024), Level.FINE);
+		list.add(getName(), "Free NonHeap", format.format( nonHeap.getMax() == -1 ? 0 :
+				(nonHeap.getMax() - nonHeap.getUsed()) / 1024), Level.FINE);
 	}
 
 	//~--- set methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param config
-	 */
 	@Override
-	public void setConfig(ConfiguratorAbstract config) {
+	public void setConfig(ConfiguratorAbstract config) throws ConfigurationException {
 		components.put(getName(), this);
 		this.config = config;
 		addRegistrator(config);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param props
-	 */
 	@Override
-	public void setProperties(Map<String, Object> props) {
+	public void setProperties(Map<String, Object> props) throws ConfigurationException {
 		if (inProperties) {
 			return;
 		} else {
@@ -751,6 +652,11 @@ public class MessageRouter
 						cr.setName(name);
 					}    // end of if (cr == null)
 					addRegistrator(cr);
+				} catch (ConfigurationException ex) {
+					log.log(Level.WARNING, "configuration of component " + name + " failed - disabling component, error: " + ex.getMessage());
+					if (cr != null) {
+						removeRegistrator(cr);
+					}
 				} catch (Exception e) {
 					e.printStackTrace();
 				}      // end of try-catch
@@ -793,6 +699,7 @@ public class MessageRouter
 //            start = true;
 						}
 					}    // end of if (cr == null)
+					
 					if (mr instanceof MessageReceiver) {
 						addRouter((MessageReceiver) mr);
 					} else {
@@ -804,13 +711,23 @@ public class MessageRouter
 //                ((MessageReceiver) mr).start();
 //        }
 				}      // end of try
-						catch (ClassNotFoundException e) {
+				catch (ClassNotFoundException e) {
 					log.log(Level.WARNING, "class for component = {0} could not be found " +
-							"- disabling component", name);
-
+							"- disabling component", name);					
 //        conf.setComponentActive(name, false);
 				}    // end of try
-						catch (Exception e) {
+				catch (ConfigurationException ex) {
+					log.log(Level.WARNING, "configuration of component " + name + " failed - disabling component, error: " + ex.getMessage());
+					if (mr != null) {
+						if (mr instanceof MessageReceiver) {
+							removeRouter((MessageReceiver) mr);
+							((MessageReceiver) mr).release();
+						} else {
+							removeComponent(mr);
+						}
+					}
+				}
+				catch (Exception e) {
 					e.printStackTrace();
 				}    // end of try-catch
 			}      // end of for (String name: reg_names)
@@ -861,16 +778,6 @@ public class MessageRouter
 
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param def
-	 *
-	 *
-	 *
-	 * @return a value of <code>Integer</code>
-	 */
 	@Override
 	protected Integer getMaxQueueSize(int def) {
 		return def * 10;
@@ -1040,8 +947,9 @@ public class MessageRouter
 			return comp;
 		}
 		if (log.isLoggable(Level.FINEST)) {
-			log.log(Level.FINEST, "None compId matches (fast lookup): {0}, for map: {1}", new Object[] { jid,
-					components_byId });
+			log.log( Level.FINEST, "No componentID matches (fast lookup against exact address): "
+														 + "{0}, for map: {1}; trying VHost lookup",
+							 new Object[] { jid, components_byId.keySet() } );
 		}
 
 		// Note, component ID consists of the component name + default hostname
@@ -1057,11 +965,11 @@ public class MessageRouter
 				return comp;
 			}
 		}
-		if (log.isLoggable(Level.FINEST)) {
-			log.log(Level.FINEST,
-					"Still no comp name matches (VHost lookup): {0}, for map: {1}, for all VHosts: {3}",
-					new Object[] { jid,
-					components, vHostManager.getAllVHosts() });
+		if ( log.isLoggable( Level.FINEST ) ){
+			log.log( Level.FINEST,
+							 "No component name matches (VHost lookup against component name): "
+							 + "{0}, for map: {1}, for all VHosts: {2}; trying other forms of addressing",
+							 new Object[] { jid, components.keySet(), vHostManager.getAllVHosts() } );
 		}
 
 		// Instead of a component ID built of: component name + "@" domain name
@@ -1077,13 +985,17 @@ public class MessageRouter
 			comp = components.get(cmpName);
 			if ((comp != null) && (isLocalDomain(basename) || basename.equals(getDefHostName()
 					.getDomain()))) {
+				if ( log.isLoggable( Level.FINEST ) ){
+					log.log( Level.FINEST,
+									 "Component matched: {0}, for comp: {1}, basename: {3}",
+									 new Object[] { jid, components.keySet(), comp, basename } );
+				}
 				return comp;
 			}
 			if ( log.isLoggable( Level.FINEST ) ){
 				log.log( Level.FINEST,
 								 "Component match failed: {0}, for comp: {1}, basename: {3}",
-								 new Object[] { jid,
-																components, comp, basename } );
+								 new Object[] { jid, components.keySet(), comp, basename } );
 			}
 		}
 

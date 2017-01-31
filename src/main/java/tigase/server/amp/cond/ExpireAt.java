@@ -39,6 +39,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.logging.Logger;
 import java.util.Map;
+import java.util.TimeZone;
 
 /**
  * Created: Apr 27, 2010 5:36:39 PM
@@ -58,17 +59,16 @@ public class ExpireAt
 
 	//~--- fields ---------------------------------------------------------------
 
-	private final SimpleDateFormat formatter =
-		new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
-
+	private final SimpleDateFormat formatter;
+	private final SimpleDateFormat formatter2;
+	{
+		formatter = new SimpleDateFormat( "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" );
+		formatter.setTimeZone( TimeZone.getTimeZone( "UTC" ) );
+		formatter2 = new SimpleDateFormat( "yyyy-MM-dd'T'HH:mm:ss'Z'" );
+		formatter2.setTimeZone( TimeZone.getTimeZone( "UTC" ) );
+	}
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	public String getName() {
 		return NAME;
@@ -76,16 +76,6 @@ public class ExpireAt
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 * @param packet
-	 * @param rule
-	 *
-	 * 
-	 */
 	@Override
 	public boolean match(Packet packet, Element rule) {
 		String value = rule.getAttributeStaticStr("value");
@@ -94,8 +84,14 @@ public class ExpireAt
 			try {
 				Date val_date = null;
 
-				synchronized (formatter) {
-					val_date = formatter.parse(value);
+				if (value.contains(".")) {
+					synchronized (formatter) {
+						val_date = formatter.parse(value);
+					}
+				} else {
+					synchronized (formatter2) {
+						val_date = formatter2.parse(value);
+					}
 				}
 
 				return val_date.before(new Date());

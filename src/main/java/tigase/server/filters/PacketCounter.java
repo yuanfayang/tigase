@@ -64,16 +64,6 @@ public class PacketCounter
 
 	//~--- methods --------------------------------------------------------------
 
-	// ~--- methods --------------------------------------------------------------
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 *
-	 * 
-	 */
 	@Override
 	public Packet filter(Packet packet) {
 		if (packet.getElemName() == "message") {
@@ -105,13 +95,6 @@ public class PacketCounter
 
 	// ~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param name
-	 * @param qType
-	 */
 	@Override
 	public void init(String name, QueueType qType) {
 		this.name  = name;
@@ -120,30 +103,22 @@ public class PacketCounter
 
 	//~--- get methods ----------------------------------------------------------
 
-	// ~--- get methods ----------------------------------------------------------
-
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param list
-	 */
 	@Override
 	public void getStatistics(StatisticsList list) {
-		list.add(name, qType.name() + "processed messages", msgCounter, Level.FINER);
-		list.add(name, qType.name() + "processed presences", presCounter, Level.FINER);
-		list.add(name, qType.name() + "processed cluster", clusterCounter, Level.FINER);
-		list.add(name, qType.name() + "processed other", otherCounter, Level.FINER);
-		list.add(name, qType.name() + "processed IQ no XMLNS", iqCounters[0], Level.FINER);
+		list.add(name, qType.name() + " processed messages", msgCounter, Level.FINER);
+		list.add(name, qType.name() + " processed presences", presCounter, Level.FINER);
+		list.add(name, qType.name() + " processed cluster", clusterCounter, Level.FINER);
+		list.add(name, qType.name() + " processed other", otherCounter, Level.FINER);
+		list.add(name, qType.name() + " processed IQ no XMLNS", iqCounters[0], Level.FINER);
 
 		long iqs = iqCounters[0];
 
 		for (Entry<String, Integer> iqCounter : iqCounterIdx.entrySet()) {
-			list.add(name, qType.name() + "processed IQ " + iqCounter.getKey(),
+			list.add(name, qType.name() + " processed IQ " + iqCounter.getKey(),
 					iqCounters[iqCounter.getValue()], Level.FINER);
 			iqs += iqCounters[iqCounter.getValue()];
 		}
-		list.add(name, qType.name() + "processed total IQ", iqs, Level.FINER);
+		list.add(name, qType.name() + " processed total IQ", iqs, Level.FINER);
 	}
 
 	//~--- methods --------------------------------------------------------------

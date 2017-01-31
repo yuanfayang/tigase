@@ -3,7 +3,7 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<slf4j.version>1.7.5</slf4j.version>
-		<packet.version>5.2.0</packet.version>
+		<packet.version>5.3.0</packet.version>
 		<packaging.type>bundle</packaging.type>
 		<dir>target</dir>
 		<maven.build.timestamp.format>yyyy-MM-dd/HH:mm:ss</maven.build.timestamp.format>
@@ -13,7 +13,7 @@
 
 	<groupId>tigase</groupId>
 	<artifactId>tigase-server-master</artifactId>
-	<version>5.2.4-SNAPSHOT</version>
+	<version>7.0.5-SNAPSHOT</version>
 	
 	<name>Tigase XMPP Server Master project</name>
 
@@ -49,7 +49,8 @@
 		<connection>scm:git:https://repository.tigase.org/git/tigase-server.git</connection>
 		<developerConnection>scm:git:https://repository.tigase.org/git/tigase-server.git</developerConnection>
 		<url>https://projects.tigase.org/projects/tigase-server/repository</url>
-	</scm>
+	  <tag>tigase-server-7.0.4</tag>
+  </scm>
 
 	<organization>
 		<name>"Tigase, Inc."</name>
@@ -58,19 +59,20 @@
 
 	<modules>
 		<module>../../</module>
-		<module>../distribution</module>
-		<module>../izpack-installer</module>
 	</modules>
 
 	<profiles>
 		<profile>
 			<id>dist</id>
 			<activation>
-				<activeByDefault>true</activeByDefault>
 				<property>
 					<name>dist</name>
 				</property>
 			</activation>
+			<modules>
+				<module>../documentation</module>
+				<module>../distribution</module>
+			</modules>
 			<properties>
 				<maven.javadoc.skip>false</maven.javadoc.skip>
 				<packaging.type>bundle</packaging.type>
@@ -86,6 +88,10 @@
 
 		<plugins>
 			<plugin>
+				<artifactId>maven-release-plugin</artifactId>
+				<version>2.5.1</version>
+			</plugin>
+			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>buildnumber-maven-plugin</artifactId>
 				<version>1.2</version>
@@ -95,6 +101,8 @@
 					<doUpdate>false</doUpdate>
 					<getRevisionOnlyOnce>true</getRevisionOnlyOnce>
 					<shortRevisionLength>8</shortRevisionLength>
+					<autoVersionSubmodules>true</autoVersionSubmodules>
+					<tagNameFormat>tigase-server-@{project.version}</tagNameFormat>
 				</configuration>
 				<executions>
 					<execution>
@@ -145,23 +153,24 @@
 								<script>git rev-list HEAD --count</script>
 							</properties>
 							<source>
-								def command = project.properties.script
-								def process = command.execute()
-								process.waitFor()
+								def version
+								try {
+									def command = project.properties.script
+									def process = command.execute()
+									process.waitFor()
 
-								def describe = process.in.text.trim()
-								println "setting revision to: " + describe
+									version = process.in.text.trim()
+								} catch (Exception e) {
+									version = '0'
+								}
+								println "setting revision to: " + version
 
-								project.properties.setProperty('gitVersion',describe)
+								project.properties.setProperty( 'gitVersion' , version )
+
 							</source>
 						</configuration>
 					</execution>
 				</executions>
-			</plugin>
-
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-release-plugin</artifactId>
 			</plugin>
 
 			<plugin>
@@ -176,8 +185,8 @@
 						</goals>
 						<configuration>
 							<quiet>true</quiet>
-							<reportOutputDirectory>${project.reporting.outputDirectory}/docs</reportOutputDirectory>
-							<destDir>docs</destDir>
+							<reportOutputDirectory>${project.reporting.outputDirectory}/docs/javadoc</reportOutputDirectory>
+							<destDir>docs/javadoc</destDir>
 							<maxmemory>512m</maxmemory>
 						</configuration>
 					</execution>
@@ -189,12 +198,12 @@
 			<extension>
 				<groupId>org.apache.maven.wagon</groupId>
 				<artifactId>wagon-ssh-external</artifactId>
-				<version>2.2</version>
+				<version>2.10</version>
 			</extension>
 			<extension>
 				<groupId>org.apache.maven.wagon</groupId>
 				<artifactId>wagon-ssh</artifactId>
-				<version>2.2</version>
+				<version>2.10</version>
 			</extension>
 		</extensions>
 	</build>

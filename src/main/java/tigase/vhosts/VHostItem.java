@@ -26,20 +26,27 @@ package tigase.vhosts;
 
 //~--- non-JDK imports --------------------------------------------------------
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import tigase.db.comp.RepositoryItemAbstract;
+
 import tigase.server.Command;
 import tigase.server.Packet;
 import tigase.server.XMPPServer;
+
 import tigase.util.DataTypes;
 import tigase.util.TigaseStringprepException;
 import tigase.xml.Element;
+
 import tigase.xmpp.JID;
 
-//~--- JDK imports ------------------------------------------------------------
-
-
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import tigase.util.StringUtilities;
 
 /**
  * Objects of this class represent virtual host with all hosts configuration
@@ -52,7 +59,7 @@ import java.util.logging.Logger;
  * instance of the class or can be exported to the XML form for permanent
  * storage:
  *
- * <pre>
+ * {@code
  * <vhost hostname="vhost.something.com"
  *        enabled="true"
  *        anon="true"
@@ -60,7 +67,7 @@ import java.util.logging.Logger;
  *        max-users="99999999999L">
  *   <comps/>
  *   <other/>
- * </pre>
+ * }
  *
  * From the init.property file it is also possible to set additional parameters
  * for the vhost. By default everything is enabled and max accounts set to
@@ -89,7 +96,74 @@ import java.util.logging.Logger;
  * @version $Rev$
  */
 public class VHostItem
-				extends RepositoryItemAbstract {
+				extends RepositoryItemAbstract
+				implements Comparable<VHostItem> {
+	
+	public static class DataType { 
+		private final String name;
+		private final String key;
+		private final Class cls;
+		private final Object defValue;
+		private final Object[] options;
+		private final String[] optionsNames;
+		
+		public DataType(String key, String name, Class cls, Object defValue, Object[] options, String[] optionsNames) {
+			this.key = key;
+			this.name = name;
+			this.cls = cls;
+			this.defValue = defValue;
+			this.options = options;
+			this.optionsNames = optionsNames;
+			
+			if (defValue != null && !cls.isAssignableFrom(defValue.getClass())) {
+				throw new IllegalArgumentException("default value paratemeter must of class " + cls.getCanonicalName());
+			}
+			
+			if (options != null) {
+				for (Object option : options) {
+					if (option != null && !cls.isAssignableFrom(option.getClass())) {
+						throw new IllegalArgumentException("option values must of class " + cls.getCanonicalName());
+					}
+				}
+				if (optionsNames != null && options.length != optionsNames.length) {
+					throw new IllegalArgumentException("if passed options name must be specified for each option");
+				}
+			}
+		}
+		
+		public DataType(String key, String name, Class cls, Object defValue, Object[] options) {
+			this(key, name, cls, defValue, options, null);
+		}
+		
+		public DataType(String key, String name, Class cls, Object defValue) {
+			this(key, name, cls, defValue, null, null);
+		}
+
+		public String getName() {
+			return name;
+		}
+
+		public String getKey() {
+			return key;
+		}
+
+		public Class getCls() {
+			return cls;
+		}
+		
+		public <T> T getDefValue() {
+			return (T) defValue;
+		}
+		
+		public <T> T[] getOptions() {
+			return (T[]) options;
+		}
+		
+		public String[] getOptionsNames() {
+			return optionsNames;
+		}
+	}
+	
 	/**
 	 * This is an attribute name for storing information whether anonymous user
 	 * can login for this domain.
@@ -98,6 +172,13 @@ public class VHostItem
 
 	/** Field description */
 	public static final String ANONYMOUS_ENABLED_LABEL = "Anonymous enabled";
+
+	/**
+	 * List of SASL mechanisms allowed for domain
+	 */
+	public static final String SASL_MECHANISM_ATT = "sasl-mechanisms";
+
+	public static final String SASL_MECHANISM_LABEL = "Allowed SASL mechanisms";
 
 	/** Field description */
 	public static final String COMPONENTS_ATT = "comps";
@@ -109,11 +190,26 @@ public class VHostItem
 	 */
 	public static final String COMPONENTS_ELEM = "comps";
 
+	/**
+	 * This is an attribute name for storing information on which ports VHost
+	 * should be enabled.
+	 */
+	public static final String C2S_PORTS_ALLOWED_ATT = "c2s-ports-allowed";
+
+	/** Field description */
+	public static final String C2S_PORTS_ALLOWED_LABEL = "Allowed C2S,BOSH,WebSocket ports";
+
 	/** Field description */
 	public static final String DOMAIN_FILTER_POLICY_ATT = "domain-filter";
 
 	/** Field description */
+	public static final String DOMAIN_FILTER_POLICY_DOMAINS_ATT = "domain-filter-domains";
+
+	/** Field description */
 	public static final String DOMAIN_FILTER_POLICY_LABEL = "Domain filter policy";
+
+	/** Field description */
+	public static final String DOMAIN_FILTER_POLICY_DOMAINS_LABEL = "Domain filter domains (only LIST and BLACKLIST)";
 
 	/**
 	 * This is an attribute name for storing information whether the VHost is
@@ -250,9 +346,19 @@ public class VHostItem
 	/** Field description */
 	protected static final String[] VHOST_COMPONENTS_PATH = { VHOST_ELEM, COMPONENTS_ELEM };
 
+	protected static final Map<String,DataType> dataTypes = new ConcurrentHashMap<String,DataType>();
+	
+	public static void registerData(List<DataType> types) {
+		for (DataType type : types) {
+			dataTypes.put(type.getKey(), type);
+		}
+	}
+	
 	//~--- fields ---------------------------------------------------------------
 
 	private String[] comps = null;
+	private int[] c2sPortsAllowed = null;
+	private String[] saslAllowedMechanisms = null;
 	private long     maxUsersNumber = Long.getLong(VHOST_MAX_USERS_PROP_KEY,
 			VHOST_MAX_USERS_PROP_DEF);
 	private JID messageForward = JID.jidInstanceNS(System.getProperty(
@@ -271,16 +377,24 @@ public class VHostItem
 	private boolean            enabled = true;
 	private DomainFilterPolicy domainFilter = DomainFilterPolicy.valueof(System.getProperty(
 			DOMAIN_FILTER_POLICY_PROP_KEY, DOMAIN_FILTER_POLICY_PROP_DEF.toString()));
+	private String[] domainFilterDomains = null;
 	private boolean anonymousEnabled = DataTypes.getProperty(
 			VHOST_ANONYMOUS_ENABLED_PROP_KEY, VHOST_ANONYMOUS_ENABLED_PROP_DEF);
-
+	private Map<String,Object> data = new ConcurrentHashMap<String,Object>();
+	
 	//~--- constructors ---------------------------------------------------------
 
 	/**
 	 * Constructs ...
 	 *
 	 */
-	public VHostItem() {}
+	public VHostItem() {
+		// added to ensure that we have s2sSecret set, as without it S2S connections
+		// will always fail (needed mostly for newly added vhosts).
+		if (s2sSecret == null) {
+			s2sSecret = UUID.randomUUID().toString();
+		}
+	}
 
 	/**
 	 * The constructor creates the <code>VHostItem</code> instance from a given
@@ -322,12 +436,6 @@ public class VHostItem
 
 	//~--- methods --------------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 */
 	@Override
 	public void addCommandFields(Packet packet) {
 		Command.addFieldValue(packet, HOSTNAME_LABEL, (vhost != null)
@@ -343,7 +451,12 @@ public class VHostItem
 		Command.addFieldValue(packet, DOMAIN_FILTER_POLICY_LABEL, domainFilter.toString(),
 				DOMAIN_FILTER_POLICY_LABEL, DomainFilterPolicy.valuesStr(), DomainFilterPolicy
 				.valuesStr());
+		Command.addFieldValue(packet, DOMAIN_FILTER_POLICY_DOMAINS_LABEL,
+							domainFilterDomains != null ? stringArrayToString( domainFilterDomains, ";") : "");
 		Command.addFieldValue(packet, MAX_USERS_NUMBER_LABEL, "" + maxUsersNumber);
+		String c2sPortsAllowedStr = intArrayToString(c2sPortsAllowed,",");
+		Command.addFieldValue(packet, C2S_PORTS_ALLOWED_LABEL,
+				c2sPortsAllowedStr != null ? c2sPortsAllowedStr : "");
 		Command.addFieldValue(packet, PRESENCE_FORWARD_ADDRESS_LABEL, ((presenceForward !=
 				null)
 				? presenceForward.toString()
@@ -354,15 +467,55 @@ public class VHostItem
 		Command.addFieldValue(packet, OTHER_PARAMS_LABEL, (otherDomainParams != null)
 				? otherDomainParams
 				: "");
+		Command.addFieldValue(packet, SASL_MECHANISM_LABEL,
+				saslAllowedMechanisms != null ? stringArrayToString(saslAllowedMechanisms, ",") : "");
+
 		super.addCommandFields(packet);
+		
+		for (DataType type : dataTypes.values()) {
+			if (type.cls != Boolean.class) {
+				Object[] options = type.getOptions();
+				Object val = getData(type.getKey());
+				String valueStr = val != null ? DataTypes.valueToString(val) : "";
+				if (options == null || options.length == 0) {
+					Command.addFieldValue(packet, type.getName(), valueStr);
+				} else {
+					String[] optionsStr = new String[options.length];
+					for (int i=0; i<options.length; i++) {
+						optionsStr[i] = (options[i] != null) ? DataTypes.valueToString(options[i]) : "";
+					}
+					String[] optionsNames = type.getOptionsNames();
+					if (optionsNames == null) 
+						optionsNames = optionsStr;
+					Command.addFieldValue(packet, type.getName(), valueStr, type.getName(), optionsNames, optionsStr);
+				}
+			} else {
+				boolean val = isData(type.getKey());
+				Command.addCheckBoxField(packet, type.getName(), val);
+			}
+		}
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param packet
-	 */
+	@Override
+	public int compareTo( VHostItem o ) {
+		return vhost.compareTo( o.vhost );
+	}
+
+	@Override
+	public boolean equals( Object v ) {
+		boolean result = false;
+		if ( v instanceof VHostItem ){
+
+			result = vhost.equals( ( (VHostItem) v ).vhost );
+		}
+		return result;
+	}
+
+	@Override
+	public int hashCode() {
+		return vhost.hashCode();
+	}
+
 	@Override
 	public void initFromCommand(Packet packet) {
 		super.initFromCommand(packet);
@@ -391,7 +544,13 @@ public class VHostItem
 			if (domainFilter == null) {
 				domainFilter = DomainFilterPolicy.valueof(System.getProperty(
 						DOMAIN_FILTER_POLICY_PROP_KEY, DOMAIN_FILTER_POLICY_PROP_DEF.toString()));
+			} else if (domainFilter == DomainFilterPolicy.LIST || domainFilter == DomainFilterPolicy.BLACKLIST) {
+				tmp = Command.getFieldValue(packet, DOMAIN_FILTER_POLICY_DOMAINS_LABEL);
+				if ( tmp != null && !tmp.trim().isEmpty() ){
+					domainFilterDomains = StringUtilities.stringToArrayOfString( tmp, ";" );
+				}
 			}
+
 		} catch (Exception ex) {
 			domainFilter = DOMAIN_FILTER_POLICY_PROP_DEF;
 		}
@@ -425,14 +584,25 @@ public class VHostItem
 			}
 		}
 		otherDomainParams = Command.getFieldValue(packet, OTHER_PARAMS_LABEL);
+		tmp = Command.getFieldValue(packet, C2S_PORTS_ALLOWED_LABEL);
+		c2sPortsAllowed = parseIntArray(tmp, ",");
+
+		tmp = Command.getFieldValue(packet, SASL_MECHANISM_LABEL);
+		if ((tmp != null) && !tmp.trim().isEmpty()) {
+			setSaslAllowedMechanisms(tmp.split(","));
+		}
+
+		for (DataType type : dataTypes.values()) {
+			String valueStr = Command.getFieldValue(packet, type.getName());
+			char typeId = DataTypes.typesMap.get(type.cls.getName());
+			Object value = (valueStr == null || valueStr.isEmpty()) ? null :DataTypes.decodeValueType(typeId, valueStr);
+			setData(type.getKey(), value);
+		}
+
+		log.log( Level.FINE, "Initialized from command: {0}", this);
+
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param elem
-	 */
 	@Override
 	public void initFromElement(Element elem) {
 		if (elem.getName() != VHOST_ELEM) {
@@ -454,6 +624,11 @@ public class VHostItem
 			if (domainFilter == null) {
 				domainFilter = DomainFilterPolicy.valueof(System.getProperty(
 						DOMAIN_FILTER_POLICY_PROP_KEY, DOMAIN_FILTER_POLICY_PROP_DEF.toString()));
+			} else if (domainFilter == DomainFilterPolicy.LIST || domainFilter == DomainFilterPolicy.BLACKLIST) {
+				String tmp = elem.getAttributeStaticStr(DOMAIN_FILTER_POLICY_DOMAINS_ATT);
+				if ( tmp != null && !tmp.trim().isEmpty() ){
+					domainFilterDomains = StringUtilities.stringToArrayOfString( tmp, ";" );
+				}
 			}
 		} catch (Exception e) {
 			domainFilter = DOMAIN_FILTER_POLICY_PROP_DEF;
@@ -482,14 +657,28 @@ public class VHostItem
 			comps = comps_str.split(",");
 		}
 		otherDomainParams = elem.getCDataStaticStr(VHOST_OTHER_PARAMS_PATH);
+
+		this.c2sPortsAllowed = parseIntArray(elem.getAttributeStaticStr(C2S_PORTS_ALLOWED_ATT), ",");
+
+		tmp = elem.getAttributeStaticStr(SASL_MECHANISM_ATT);
+		if (tmp != null) {
+			setSaslAllowedMechanisms(tmp.split(";"));
+		}
+		
+		Element data = elem.getChild("data");
+		if (data != null) {
+			List<Element> items = data.getChildren();
+			if (items != null) {
+				for (Element item : data.getChildren()) {
+					char type = item.getAttributeStaticStr("type").charAt(0);
+					Object value = DataTypes.decodeValueType(type, item.getCData());
+					setData(item.getName(), value);
+				}
+			}
+		}
+		log.log( Level.FINE, "Initialized from element: {0}", this);
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * @param propString
-	 */
 	@Override
 	public void initFromPropertyString(String propString) {
 		String[] props = propString.split(":");
@@ -530,12 +719,20 @@ public class VHostItem
 			}
 			if (tmp.startsWith(DOMAIN_FILTER_POLICY_ATT)) {
 				String[] df = tmp.split("=");
+				String[] domains;
 
 				try {
-					domainFilter = DomainFilterPolicy.valueof(df[1]);
-					if (domainFilter == null) {
-						domainFilter = DomainFilterPolicy.valueof(System.getProperty(
-								DOMAIN_FILTER_POLICY_PROP_KEY, DOMAIN_FILTER_POLICY_PROP_DEF.toString()));
+					if ( df.length == 2 ){
+						domainFilter = DomainFilterPolicy.valueof( df[1] );
+					} else if ( df.length == 3 ){
+						domainFilter = DomainFilterPolicy.valueof( df[1] );
+						if ( df[2] != null && !df[2].trim().isEmpty() ){
+							domainFilterDomains = StringUtilities.stringToArrayOfString( df[2], ";" );
+						}
+					}
+					if ( domainFilter == null ){
+						domainFilter = DomainFilterPolicy.valueof( System.getProperty(
+								DOMAIN_FILTER_POLICY_PROP_KEY, DOMAIN_FILTER_POLICY_PROP_DEF.toString() ) );
 					}
 				} catch (Exception e) {
 					domainFilter = DOMAIN_FILTER_POLICY_PROP_DEF;
@@ -575,13 +772,27 @@ public class VHostItem
 							"Incorrect presence forwarding address, address parsing error: {0}", tmp);
 				}
 			}
+			if (tmp.startsWith(C2S_PORTS_ALLOWED_ATT)) {
+				String[] mu = tmp.split("=");
+
+				c2sPortsAllowed = parseIntArray(mu[1], ";");
+			}
+			if(tmp.startsWith(SASL_MECHANISM_ATT)){
+				String[] mu = tmp.split("=");
+				setSaslAllowedMechanisms(mu[1].split(";"));
+			}
 		}
+		log.log( Level.FINE, "Initialized from property string: {0}", this);
 	}
 
 	/**
+	 * {@inheritDoc}
+	 *
+	 * <br><br>
+	 *
 	 * The method exports the <code>VHostItem</code> object to XML representation.
 	 *
-	 * @return an <code>Element</code> object with vhost information.
+	 * @return an <code>Element</code> object with VHost information.
 	 */
 	@Override
 	public Element toElement() {
@@ -606,6 +817,8 @@ public class VHostItem
 		elem.addAttribute(HOSTNAME_ATT, vhost.getDomain());
 		elem.addAttribute(ENABLED_ATT, "" + enabled);
 		elem.addAttribute(ANONYMOUS_ENABLED_ATT, "" + anonymousEnabled);
+		if (saslAllowedMechanisms != null)
+			elem.addAttribute(SASL_MECHANISM_ATT, stringArrayToString(saslAllowedMechanisms, ";"));
 		elem.addAttribute(REGISTER_ENABLED_ATT, "" + registerEnabled);
 		elem.addAttribute(TLS_REQUIRED_ATT, "" + tlsRequired);
 		if (s2sSecret != null) {
@@ -614,6 +827,9 @@ public class VHostItem
 		if (domainFilter != null) {
 			elem.addAttribute(DOMAIN_FILTER_POLICY_ATT, domainFilter.toString());
 		}
+		if (domainFilterDomains != null) {
+			elem.addAttribute(DOMAIN_FILTER_POLICY_DOMAINS_ATT, stringArrayToString( domainFilterDomains, ";"));
+		}
 		elem.addAttribute(MAX_USERS_NUMBER_ATT, "" + maxUsersNumber);
 		if (presenceForward != null) {
 			elem.addAttribute(PRESENCE_FORWARD_ADDRESS_ATT, presenceForward.toString());
@@ -621,18 +837,25 @@ public class VHostItem
 		if (messageForward != null) {
 			elem.addAttribute(MESSAGE_FORWARD_ADDRESS_ATT, messageForward.toString());
 		}
+		if (c2sPortsAllowed != null) {
+			String c2sPortsAllowedStr = intArrayToString(c2sPortsAllowed, ",");
+			elem.addAttribute(C2S_PORTS_ALLOWED_ATT, c2sPortsAllowedStr);
+		}
 
+		if (!data.isEmpty()) {
+			Element data = new Element("data");
+			for (Map.Entry<String,Object> e : this.data.entrySet()) {
+				Element item = new Element(e.getKey());
+				item.addAttribute("type", String.valueOf(DataTypes.getTypeId(e.getValue())));
+				item.setCData(DataTypes.valueToString(e.getValue()));
+				data.addChild(item);
+			}
+			elem.addChild(data);
+		}
+		
 		return elem;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 */
 	@Override
 	public String toPropertyString() {
 		StringBuilder sb = new StringBuilder();
@@ -652,6 +875,9 @@ public class VHostItem
 		}
 		sb.append(':').append(DOMAIN_FILTER_POLICY_ATT).append('=').append(domainFilter
 				.toString());
+		if (domainFilterDomains!=null) {
+			sb.append( "=").append( stringArrayToString( domainFilterDomains, ";"));
+		}
 		if (maxUsersNumber > 0) {
 			sb.append(':').append(MAX_USERS_NUMBER_ATT).append('=').append(maxUsersNumber);
 		}
@@ -663,24 +889,32 @@ public class VHostItem
 			sb.append(':').append(MESSAGE_FORWARD_ADDRESS_ATT).append('=').append(messageForward
 					.toString());
 		}
+		if (c2sPortsAllowed != null) {
+			sb.append(':').append(C2S_PORTS_ALLOWED_ATT).append('=').append(intArrayToString(c2sPortsAllowed, ";"));
+		}
+
+		if (saslAllowedMechanisms != null) {
+			sb.append(':').append(SASL_MECHANISM_ATT).append('=').append(stringArrayToString(saslAllowedMechanisms, ";"));
+		}
 
 		return sb.toString();
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 */
 	@Override
 	public String toString() {
-		return "Domain: " + vhost + ", enabled: " + enabled + ", anonym: " +
-				anonymousEnabled + ", register: " + registerEnabled + ", maxusers: " +
-				maxUsersNumber + ", tls: " + tlsRequired + ", s2sSecret: " + s2sSecret +
-				", domainFilter: " + domainFilter;
+		String str = "Domain: " + vhost + ", enabled: " + enabled
+								 + ", anonym: " + anonymousEnabled + ", register: " + registerEnabled
+								 + ", maxusers: " + maxUsersNumber + ", tls: " + tlsRequired
+								 + ", s2sSecret: " + s2sSecret + ", domainFilter: " + domainFilter
+								 + ", domainFilterDomains: " + stringArrayToString( domainFilterDomains, ";")
+								 + ", c2sPortsAllowed: " + intArrayToString( c2sPortsAllowed, "," )
+								 + ", saslAllowedMechanisms: " + Arrays.toString( saslAllowedMechanisms );
+		
+		for (Map.Entry<String,Object> e : data.entrySet()) {
+			str += ", " + e.getKey() + ": " + DataTypes.valueToString(e.getValue());
+		}
+		
+		return str;
 	}
 
 	//~--- get methods ----------------------------------------------------------
@@ -696,6 +930,34 @@ public class VHostItem
 		return comps;
 	}
 
+	/**
+	 * Returns an array with ports on which C2S connections for this VHosts
+	 * are allowed.
+	 *
+	 * @return a <code>int[]</code> object with allowed C2S ports.
+	 */
+	public int[] getC2SPortsAllowed() {
+		return c2sPortsAllowed;
+	}
+
+	/**
+	 * Return value for key for this VHost
+	 * 
+	 * @param <T>
+	 * @param key
+	 * @return 
+	 */
+	public <T> T getData(String key) {
+		T val = (T) data.get(key);
+		if (val == null) {
+			DataType type = dataTypes.get(key);
+			if (type != null) {
+				val = type.getDefValue();
+			}
+		}
+		return val;
+	}
+	
 	/**
 	 * Method description
 	 *
@@ -713,27 +975,15 @@ public class VHostItem
 		return domainFilter;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 */
+	public String[] getDomainFilterDomains() {
+		return domainFilterDomains;
+	}
+	
 	@Override
 	public String getElemName() {
 		return VHOST_ELEM;
 	}
 
-	/**
-	 * Method description
-	 *
-	 *
-	 *
-	 *
-	 * @return a value of <code>String</code>
-	 */
 	@Override
 	public String getKey() {
 		return this.vhost.getDomain();
@@ -767,7 +1017,7 @@ public class VHostItem
 	 * @return a value of <code>JID</code>
 	 */
 	public JID getMessageForwardAddress() {
-		return presenceForward;
+		return messageForward;
 	}
 
 	/**
@@ -851,6 +1101,22 @@ public class VHostItem
 	}
 
 	/**
+	 * Get boolean value contained by this VHost for key
+	 * 
+	 * @param key
+	 * @return 
+	 */
+	public boolean isData(String key) {
+		if (data.containsKey(key))
+			return (Boolean) data.get(key);
+		else {
+			DataType type = dataTypes.get(key);
+			Boolean defValue = (type == null) ? null : (Boolean)type.getDefValue();
+			return defValue != null ? defValue : false;
+		}
+	}
+	
+	/**
 	 * Checks whether this domain is set as enabled or not. This is domain own
 	 * configuration parameter which allows to temporarly disable domain so
 	 * packets for this domain are not processed normally. Instead the server
@@ -862,7 +1128,7 @@ public class VHostItem
 	public boolean isEnabled() {
 		return enabled;
 	}
-
+	
 	/**
 	 * The method checks whether user registration is enabled for this domain or
 	 * not. This is the domain own configuration parameter which allows to disable
@@ -913,13 +1179,49 @@ public class VHostItem
 	}
 
 	/**
-	 * Method description
+	 * Sets an array of ports for which C2S connections for this VHost will be
+	 * allowed.
 	 *
+	 * @param ports
+	 *			is an <code>int[]</code> array of allowed C2S ports.
+	 */
+	public void setC2SPortsAllowed(int[] ports) {
+		this.c2sPortsAllowed = ports;
+	}
+
+	/**
+	 * Set value for specified key for this VHost
+	 * 
+	 * @param key
+	 * @param value 
+	 */
+	public void setData(String key, Object value) {
+		if (value == null) {
+			this.data.remove(key);
+		} else {
+			this.data.put(key, value);
+		}
+	}
+	
+	/**
+	 * This method allow configure DomainFilterPolicy to be applied during packet
+	 * filtering.
 	 *
-	 * @param domainFilter
+	 * @param domainFilter name of the DomainFilterPolicy to be applied
 	 */
 	public void setDomainFilter(DomainFilterPolicy domainFilter) {
 		this.domainFilter = domainFilter;
+	}
+
+	/**
+	 * This method allow specify list of domains that will be used for packet
+	 * filtering when DomainFilteringPolicy is set to either LIST or BLACKLIST.
+	 *
+	 * @param domainFilterDomains  array of domains to be applied during filtering
+	 */
+	public void setDomainFilterDomains(String[] domainFilterDomains) {
+		this.domainFilterDomains = StringUtilities.internStringArray( domainFilterDomains);
+
 	}
 
 	/**
@@ -1030,53 +1332,82 @@ public class VHostItem
 		this.vhost = vhost;
 	}
 
+	private int[] parseIntArray(String tmp, String separator) {
+		int[] c2s_ports_allowed = null;
+		if (tmp != null && !tmp.isEmpty()) {
+			String[] tmpPorts = tmp.split(separator);
+			c2s_ports_allowed = new int[tmpPorts.length];
+			int filled = 0;
+			for (String portStr : tmpPorts) {
+				try {
+					c2s_ports_allowed[filled] = Integer.parseInt(portStr);
+					filled++;
+				} catch (Exception ex) {
+					log.log(Level.WARNING, "Can not parse allowed c2s port: {0}", portStr);
+				}
+			}
+			if (filled == 0) {
+				c2s_ports_allowed = null;
+			}
+			else if (filled < c2s_ports_allowed.length) {
+				c2s_ports_allowed = Arrays.copyOf(c2s_ports_allowed, filled);
+			}
+			if (c2s_ports_allowed != null) {
+				Arrays.sort(c2s_ports_allowed);
+			}
+		}
+		return c2s_ports_allowed;
+	}
+
+	private String intArrayToString(int[] arr, String separator) {
+		if (arr == null) {
+			return null;
+		}
+		StringBuilder buf = new StringBuilder();
+		for (int i = 0; i < arr.length; i++) {
+			if (i > 0) {
+				buf.append(separator);
+			}
+			buf.append(arr[i]);
+		}
+		return buf.toString();
+	}
+
+	private String stringArrayToString(String[] arr, String separator) {
+		if (arr == null) {
+			return null;
+		}
+		StringBuilder buf = new StringBuilder();
+		for (int i = 0; i < arr.length; i++) {
+			if (i > 0) {
+				buf.append(separator);
+			}
+			buf.append(arr[i]);
+		}
+		return buf.toString();
+	}
+
 	//~--- inner classes --------------------------------------------------------
 
 	private class UnmodifiableVHostItem
 					extends VHostItem {
-		/**
-		 * Method description
-		 *
-		 *
-		 * @param elem
-		 */
 		@Override
 		public void initFromElement(Element elem) {
 			throw new UnsupportedOperationException(
 					"This is unmodifiable instance of VHostItem");
 		}
 
-		/**
-		 * Method description
-		 *
-		 *
-		 * @param propString
-		 */
 		@Override
 		public void initFromPropertyString(String propString) {
 			throw new UnsupportedOperationException(
 					"This is unmodifiable instance of VHostItem");
 		}
 
-		/**
-		 * The method exports the <code>VHostItem</code> object to XML
-		 * representation.
-		 *
-		 * @return an <code>Element</code> object with vhost information.
-		 */
 		@Override
 		public Element toElement() {
 			return VHostItem.this.toElement();
 		}
 
-		/**
-		 * Method description
-		 *
-		 *
-		 *
-		 *
-		 * @return a value of <code>String</code>
-		 */
 		@Override
 		public String toString() {
 			return VHostItem.this.toString();
@@ -1084,157 +1415,87 @@ public class VHostItem
 
 		//~--- get methods --------------------------------------------------------
 
-		/**
-		 * Returns an array with the server components names which should process
-		 * packets sent to this domain or <code>null</code> (default) if there is no
-		 * specific component assigned to this domain.
-		 *
-		 * @return a <code>String[]</code> object with server component names.
-		 */
 		@Override
 		public String[] getComps() {
 			return VHostItem.this.getComps();
 		}
 
-		/**
-		 * Method description
-		 *
-		 *
-		 *
-		 *
-		 * @return a value of <code>DomainFilterPolicy</code>
-		 */
+		@Override
+		public <T> T getData(String key) {
+			return VHostItem.this.getData(key);
+		}
+		
 		@Override
 		public DomainFilterPolicy getDomainFilter() {
 			return VHostItem.this.getDomainFilter();
 		}
 
-		/**
-		 * This method returns the maximum number of user accounts allowed for this
-		 * domain. This parameter is to allow for limiting number of users on per
-		 * domain basis.
-		 *
-		 * @return a <code>long</code> value indicating the maximum number of user
-		 *         accounts allowed for this domain.
-		 */
+		@Override
+		public String[] getDomainFilterDomains() {
+			return VHostItem.this.getDomainFilterDomains();
+		}
+
+
 		@Override
 		public long getMaxUsersNumber() {
 			return VHostItem.this.getMaxUsersNumber();
 		}
 
-		/**
-		 * @return the messageForward
-		 */
 		@Override
 		public JID getMessageForward() {
 			return VHostItem.this.messageForward;
 		}
 
-		/**
-		 * This method allows to access the virtual domain other configuration
-		 * parameters. This is future feature API and it is not used right now. It
-		 * allows to access configuration parameters which are not specified at the
-		 * time of API definition.
-		 *
-		 * @return a <code>String</code> value with domain extra parameters.
-		 */
 		@Override
 		public String getOtherDomainParams() {
 			return VHostItem.this.getOtherDomainParams();
 		}
 
-		/**
-		 * @return the presenceForward
-		 */
 		@Override
 		public JID getPresenceForward() {
 			return VHostItem.this.presenceForward;
 		}
 
-		/**
-		 * Method description
-		 *
-		 *
-		 *
-		 *
-		 * @return a value of <code>String</code>
-		 */
 		@Override
 		public String getS2sSecret() {
 			return VHostItem.this.getS2sSecret();
 		}
 
-		/**
-		 * Method description
-		 *
-		 *
-		 *
-		 *
-		 * @return a value of <code>VHostItem</code>
-		 */
+		@Override
+		public String[] getSaslAllowedMechanisms() {
+			return VHostItem.this.getSaslAllowedMechanisms();
+		}
+
 		@Override
 		public VHostItem getUnmodifiableVHostItem() {
 			return this;
 		}
 
-		/**
-		 * This method return a virtual host name as a <code>String</code> value.
-		 *
-		 * @return a <code>String</code> value with the virtual domain name.
-		 */
 		@Override
 		public JID getVhost() {
 			return VHostItem.this.getVhost();
 		}
 
-		/**
-		 * This method checks whether anonymous login is enabled for this domain.
-		 * This is the domain own configuration parameter which allows to disable
-		 * anonymous logins on per domain basis.
-		 *
-		 * @return a <code>boolean</code> value indicating whether anonymous logins
-		 *         are allowed for this domain.
-		 */
 		@Override
 		public boolean isAnonymousEnabled() {
 			return VHostItem.this.isAnonymousEnabled();
 		}
 
-		/**
-		 * Checks whether this domain is set as enabled or not. This is domain own
-		 * configuration parameter which allows to temporarly disable domain so
-		 * packets for this domain are not processed normally. Instead the server
-		 * returns an error.
-		 *
-		 * @return a <code>boolean</code> value <code>true</code> if the domain is
-		 *         enabled and <code>false</code> if the domain is disabled.
-		 */
+		@Override
+		public boolean isData(String key) {
+			return VHostItem.this.isData(key);
+		}
+		
 		@Override
 		public boolean isEnabled() {
 			return VHostItem.this.isEnabled();
 		}
 
-		/**
-		 * The method checks whether user registration is enabled for this domain or
-		 * not. This is the domain own configuration parameter which allows to
-		 * disable user accounts registration via XMPP per domain basis.
-		 *
-		 * @return a <code>boolean</code> value indicating whether user account
-		 *         registration is allowed for this domain.
-		 */
 		@Override
 		public boolean isRegisterEnabled() {
 			return VHostItem.this.isRegisterEnabled();
 		}
 
-		/**
-		 * Method description
-		 *
-		 *
-		 *
-		 *
-		 * @return a value of <code>boolean</code>
-		 */
 		@Override
 		public boolean isTlsRequired() {
 			return VHostItem.this.isTlsRequired();
@@ -1242,149 +1503,104 @@ public class VHostItem
 
 		//~--- set methods --------------------------------------------------------
 
-		/**
-		 * This method allows to enable or disable anonymous logins for this domain.
-		 * By default anonymous logins are enabled.
-		 *
-		 * @param enabled
-		 *          is a <code>boolean</code> value indicating whether anonymous
-		 *          logins are allowed for this domain.
-		 */
 		@Override
 		public void setAnonymousEnabled(boolean enabled) {
 			throw new UnsupportedOperationException(
 					"This is unmodifiable instance of VHostItem");
 		}
 
-		/**
-		 * Sets an array with the server component names by which packets to this
-		 * domain can be processed. Every local domain will be handled by
-		 * <code>VHostListener</code> which returns <code>true</code> for
-		 * <code>handlesLocalDomains()</code> method call and by all components set
-		 * via this method.
-		 *
-		 * @param comps
-		 *          is an <code>String[]</code> array with server component names.
-		 */
 		@Override
 		public void setComps(String[] comps) {
 			throw new UnsupportedOperationException(
 					"This is unmodifiable instance of VHostItem");
 		}
 
-		/**
-		 * Method description
-		 *
-		 *
-		 * @param filter
-		 */
+		@Override
+		public void setC2SPortsAllowed(int[] ports) {
+			throw new UnsupportedOperationException(
+					"This is unmodifiable instance of VHostItem");
+		}
+
+		@Override
+		public void setData(String key, Object value) {
+			throw new UnsupportedOperationException(
+					"This is unmodifiable instance of VHostItem");
+		}
+		
 		@Override
 		public void setDomainFilter(DomainFilterPolicy filter) {
 			throw new UnsupportedOperationException(
 					"This is unmodifiable instance of VHostItem");
 		}
 
-		/**
-		 * This method allows to enable or disable local domain. If the domain is
-		 * disabled packets sent for this domain are not processed normally, instead
-		 * the server returns an error to the sender. Domain is enabled by default.
-		 *
-		 * @param enabled
-		 *          is a <code>boolean</code> value indicating whether the domain is
-		 *          enabled or not.
-		 */
+		@Override
+	public void setDomainFilterDomains(String[] domainFilterDomains) {
+			throw new UnsupportedOperationException(
+					"This is unmodifiable instance of VHostItem");
+	}
+
 		@Override
 		public void setEnabled(boolean enabled) {
 			throw new UnsupportedOperationException(
 					"This is unmodifiable instance of VHostItem");
 		}
 
-		/**
-		 * This method allows to set the maximum number of user accounts allowed for
-		 * this domain. The default value of this parameter is: <code>0L</code>.
-		 *
-		 * @param maxUsersNumber
-		 *          is a <code>long</code> value specifying the maximum number of
-		 *          user accounts allowed for this domain.
-		 */
 		@Override
 		public void setMaxUsersNumber(long maxUsersNumber) {
 			throw new UnsupportedOperationException(
 					"This is unmodifiable instance of VHostItem");
 		}
 
-		/**
-		 * @param messageForward the messageForward to set
-		 */
 		@Override
 		public void setMessageForward(JID messageForward) {
 			throw new UnsupportedOperationException(
 					"This is unmodifiable instance of VHostItem");
 		}
 
-		/**
-		 * This method allows to set extra configuration parameters for the virtual
-		 * domain. This is future feature API and it is not used right now. It
-		 * allows to access configuration parameters which are not specified at the
-		 * time of API definition.
-		 *
-		 * @param otherParams
-		 *          is a <code>String</code> value with domain extra parameters.
-		 */
 		@Override
 		public void setOtherDomainParams(String otherParams) {
 			throw new UnsupportedOperationException(
 					"This is unmodifiable instance of VHostItem");
 		}
 
-		/**
-		 * @param presenceForward the presenceForward to set
-		 */
 		@Override
 		public void setPresenceForward(JID presenceForward) {
 			throw new UnsupportedOperationException(
 					"This is unmodifiable instance of VHostItem");
 		}
 
-		/**
-		 * This method allows to enable or disable user account registration for
-		 * this domain. By default user account registration is enabled.
-		 *
-		 * @param enabled
-		 *          is a <code>boolean</code> value indicating whether user account
-		 *          registration is allowed for this domain or not.
-		 */
 		@Override
 		public void setRegisterEnabled(boolean enabled) {
 			throw new UnsupportedOperationException(
 					"This is unmodifiable instance of VHostItem");
 		}
 
-		/**
-		 * Method description
-		 *
-		 *
-		 * @param s2sSecret
-		 */
 		@Override
 		public void setS2sSecret(String s2sSecret) {
 			throw new UnsupportedOperationException(
 					"This is unmodifiable instance of VHostItem");
 		}
 
-		/**
-		 * Method description
-		 *
-		 *
-		 * @param enabled
-		 */
 		@Override
 		public void setTlsRequired(boolean enabled) {
 			throw new UnsupportedOperationException(
 					"This is unmodifiable instance of VHostItem");
 		}
 	}
+
+	/**
+	 * @return the saslAllowedMechanisms
+	 */
+	public String[] getSaslAllowedMechanisms() {
+		return saslAllowedMechanisms;
+	}
+
+	/**
+	 * @param saslAllowedMechanisms the saslAllowedMechanisms to set
+	 */
+	public void setSaslAllowedMechanisms(String[] saslAllowedMechanisms) {
+		this.saslAllowedMechanisms = saslAllowedMechanisms == null || saslAllowedMechanisms.length == 0 ? null
+				: saslAllowedMechanisms;
+	}
 }
 
-
-//~ Formatted in Tigase Code Convention on 13/10/05

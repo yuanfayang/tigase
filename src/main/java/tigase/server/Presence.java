@@ -47,6 +47,7 @@ public class Presence
 
 	/** Field description */
 	public static final String[] PRESENCE_PRIORITY_PATH = { ELEM_NAME, "priority" };
+	public static final String[] PRESENCE_SHOW_PATH = { ELEM_NAME, "show" };
 
 	//~--- constructors ---------------------------------------------------------
 
@@ -76,12 +77,6 @@ public class Presence
 
 	//~--- get methods ----------------------------------------------------------
 
-	/**
-	 * Method description
-	 *
-	 *
-	 * 
-	 */
 	@Override
 	protected String[] getElNameErrorPath() {
 		return PRESENCE_ERROR_PATH;

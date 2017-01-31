@@ -23,6 +23,8 @@
 
 package tigase.server.bosh;
 
+import java.util.logging.Level;
+
 /**
  * Describe class Constants here.
  *
@@ -110,6 +112,10 @@ public abstract class Constants {
 	/** Field description */
 	protected static final String LANG_ATTR = "xml:lang";
 
+	protected static final String PRE_BIND_ATTR = "prebind";
+	protected static final String SESSION_ID_ATTR = "session-id";
+	protected static final String USER_ID_ATTR = "jid";
+
 	/** Field description */
 	protected static final String MAX_BATCH_SIZE_KEY = "max-batch-size";
 
@@ -127,6 +133,10 @@ public abstract class Constants {
 
 	/** Field description */
 	protected static final long MAX_PAUSE_PROP_VAL = 10;
+	
+	protected static final String MAX_SESSION_WAITING_PACKETS_KEY = "max-session-waiting-packets";
+	
+	protected static final int MAX_SESSION_WAITING_PACKETS_VAL = 100;
 
 	/** Field description */
 	protected static final String MAX_WAIT_DEF_PROP_KEY = "max-wait";
@@ -160,6 +170,12 @@ public abstract class Constants {
 
 	/** Field description */
 	protected static final String SECURE_ATTR = "secure";
+	
+	/**	Field description */
+	protected static final String SEND_NODE_HOSTNAME_KEY = "send-node-hostname";
+	
+	/** Field description */
+	protected static final boolean SEND_NODE_HOSTNAME_VAL = true;
 
 	/** Field description */
 	protected static final String SID_ATTR = "sid";
@@ -178,6 +194,10 @@ public abstract class Constants {
 
 	/** Field description */
 	protected static final int MAX_BATCH_SIZE_VAL = MAX_PACKETS;
+
+	protected static final String SID_LOGGER_KEY = "sid-logger-level";
+	protected static final String SID_LOGGER_VAL = Level.OFF.toString();
+
 
 	//~--- constant enums -------------------------------------------------------
 
